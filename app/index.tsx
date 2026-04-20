@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Board } from '@/components/checkers/Board';
@@ -10,14 +10,146 @@ import {
   posEquals,
 } from '@/game/rules';
 import type { GameState, Move } from '@/game/types';
+import {
+  formatTimer,
+  TIMER_OPTIONS,
+  VARIANTS,
+  type GameVariant,
+  type TimerOption,
+  type VariantMeta,
+} from '@/game/variants';
 
 function formatScore(n: number): string {
   const rounded = Math.round(n * 100) / 100;
   return rounded.toString();
 }
 
-export default function GameScreen() {
-  const [state, setState] = useState<GameState>(initialState);
+export default function App() {
+  const [gameState, setGameState] = useState<GameState | null>(null);
+
+  if (!gameState) {
+    return (
+      <PreGame
+        onStart={(variant, timer) => setGameState(initialState(variant, timer))}
+      />
+    );
+  }
+
+  return (
+    <GameView
+      state={gameState}
+      setState={setGameState}
+      onExit={() => setGameState(null)}
+    />
+  );
+}
+
+// --- Pre-game: pick variant + timer ----------------------------------------
+
+type PreGameProps = {
+  onStart: (variant: GameVariant, timer: TimerOption) => void;
+};
+
+function PreGame({ onStart }: PreGameProps) {
+  const [variant, setVariant] = useState<GameVariant>('electro');
+  const [timer, setTimer] = useState<TimerOption>(null);
+  const variants = Object.values(VARIANTS);
+
+  return (
+    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <ScrollView contentContainerStyle={preStyles.scroll}>
+        <View style={preStyles.header}>
+          <Text style={preStyles.title}>Sci Dama</Text>
+          <Text style={preStyles.subtitle}>Pick a variant and a clock.</Text>
+        </View>
+
+        <Text style={preStyles.sectionLabel}>VARIANT</Text>
+        <View style={preStyles.grid}>
+          {variants.map((v) => (
+            <VariantCard
+              key={v.id}
+              meta={v}
+              selected={variant === v.id}
+              onPress={() => v.available && setVariant(v.id)}
+            />
+          ))}
+        </View>
+
+        <Text style={preStyles.sectionLabel}>TIMER</Text>
+        <View style={preStyles.timerRow}>
+          {TIMER_OPTIONS.map((opt) => {
+            const active = timer === opt;
+            return (
+              <Pressable
+                key={String(opt)}
+                onPress={() => setTimer(opt)}
+                style={[preStyles.timerChip, active && preStyles.timerChipActive]}
+              >
+                <Text style={[preStyles.timerText, active && preStyles.timerTextActive]}>
+                  {formatTimer(opt)}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        <Text style={preStyles.hint}>Official matches are capped at 20 minutes.</Text>
+
+        <Pressable
+          onPress={() => onStart(variant, timer)}
+          style={[preStyles.startBtn, { backgroundColor: VARIANTS[variant].palette.accent }]}
+        >
+          <Text style={preStyles.startText}>Start Game</Text>
+        </Pressable>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+function VariantCard({
+  meta,
+  selected,
+  onPress,
+}: {
+  meta: VariantMeta;
+  selected: boolean;
+  onPress: () => void;
+}) {
+  const disabled = !meta.available;
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={disabled}
+      style={[
+        preStyles.card,
+        { borderColor: selected ? meta.palette.accent : '#2a2a2a' },
+        disabled && preStyles.cardDisabled,
+      ]}
+    >
+      <View style={[preStyles.swatch, { backgroundColor: meta.palette.boardDarkFrom }]}>
+        <View style={[preStyles.swatchTile, { backgroundColor: meta.palette.boardLightTo }]} />
+      </View>
+      <Text style={preStyles.cardName}>{meta.name}</Text>
+      <Text style={preStyles.cardTag} numberOfLines={2}>
+        {meta.tagline}
+      </Text>
+      {disabled ? (
+        <View style={preStyles.soonBadge}>
+          <Text style={preStyles.soonText}>COMING SOON</Text>
+        </View>
+      ) : null}
+    </Pressable>
+  );
+}
+
+// --- Game view (the playable board) ----------------------------------------
+
+type GameViewProps = {
+  state: GameState;
+  setState: (state: GameState) => void;
+  onExit: () => void;
+};
+
+function GameView({ state, setState, onExit }: GameViewProps) {
   const { width, height } = useWindowDimensions();
   const boardSize = useMemo(
     () => Math.floor(Math.min(width, height) * 0.88),
@@ -52,14 +184,29 @@ export default function GameScreen() {
   }
 
   function restart() {
-    setState(initialState());
+    setState(initialState(state.variant, state.timeLimitSeconds));
   }
 
   const turnLabel = state.turn === 'red' ? "Red's turn" : "Black's turn";
   const turnColor = state.turn === 'red' ? '#c0392b' : '#1e1e1e';
+  const meta = VARIANTS[state.variant];
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
+      <View style={styles.topBar}>
+        <Pressable onPress={onExit} style={styles.exitBtn}>
+          <Text style={styles.exitText}>← Change game</Text>
+        </Pressable>
+        <View style={styles.badges}>
+          <View style={[styles.variantPill, { backgroundColor: meta.palette.accent }]}>
+            <Text style={styles.variantPillText}>{meta.name}</Text>
+          </View>
+          <View style={styles.timerPill}>
+            <Text style={styles.timerPillText}>{formatTimer(state.timeLimitSeconds)}</Text>
+          </View>
+        </View>
+      </View>
+
       <View style={styles.banner}>
         <View style={[styles.turnDot, { backgroundColor: turnColor }]} />
         <Text style={styles.bannerText}>{turnLabel}</Text>
@@ -111,10 +258,54 @@ export default function GameScreen() {
   );
 }
 
+// --- Styles ---------------------------------------------------------------
+
 const styles = StyleSheet.create({
   root: {
     flex: 1,
     backgroundColor: '#fafafa',
+  },
+  topBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    paddingTop: 8,
+  },
+  exitBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+  },
+  exitText: {
+    color: '#333',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  badges: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  variantPill: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+  },
+  variantPillText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  timerPill: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 10,
+    backgroundColor: '#e5e5e5',
+  },
+  timerPillText: {
+    color: '#333',
+    fontSize: 11,
+    fontWeight: '600',
   },
   banner: {
     paddingVertical: 12,
@@ -160,20 +351,10 @@ const styles = StyleSheet.create({
     gap: 8,
     minWidth: 90,
   },
-  scoreTopLeft: {
-    top: 0,
-    left: 0,
-  },
-  scoreBottomRight: {
-    bottom: 0,
-    right: 0,
-  },
-  scoreBlack: {
-    backgroundColor: '#1e1e1e',
-  },
-  scoreRed: {
-    backgroundColor: '#c0392b',
-  },
+  scoreTopLeft: { top: 0, left: 0 },
+  scoreBottomRight: { bottom: 0, right: 0 },
+  scoreBlack: { backgroundColor: '#1e1e1e' },
+  scoreRed: { backgroundColor: '#c0392b' },
   scoreLabel: {
     color: '#fff',
     fontSize: 12,
@@ -224,5 +405,126 @@ const styles = StyleSheet.create({
   winnerSub: {
     fontSize: 14,
     color: '#555',
+  },
+});
+
+const preStyles = StyleSheet.create({
+  scroll: {
+    padding: 20,
+    gap: 12,
+  },
+  header: {
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  title: {
+    fontSize: 30,
+    fontWeight: '700',
+    color: '#111',
+  },
+  subtitle: {
+    fontSize: 14,
+    color: '#666',
+    marginTop: 4,
+  },
+  sectionLabel: {
+    marginTop: 12,
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.8,
+    color: '#777',
+  },
+  grid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+  },
+  card: {
+    width: '47.5%',
+    backgroundColor: '#fff',
+    padding: 12,
+    borderRadius: 14,
+    borderWidth: 2,
+    gap: 8,
+  },
+  cardDisabled: {
+    opacity: 0.55,
+  },
+  swatch: {
+    height: 56,
+    borderRadius: 8,
+    padding: 6,
+    justifyContent: 'flex-end',
+    alignItems: 'flex-end',
+  },
+  swatchTile: {
+    width: 16,
+    height: 16,
+    borderRadius: 3,
+  },
+  cardName: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#111',
+  },
+  cardTag: {
+    fontSize: 11,
+    color: '#666',
+    lineHeight: 14,
+  },
+  soonBadge: {
+    alignSelf: 'flex-start',
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    backgroundColor: '#eee',
+  },
+  soonText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#666',
+    letterSpacing: 0.6,
+  },
+  timerRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  timerChip: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#d9d9d9',
+  },
+  timerChipActive: {
+    backgroundColor: '#2c3e50',
+    borderColor: '#2c3e50',
+  },
+  timerText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#444',
+  },
+  timerTextActive: {
+    color: '#fff',
+  },
+  hint: {
+    fontSize: 11,
+    color: '#888',
+    fontStyle: 'italic',
+  },
+  startBtn: {
+    marginTop: 16,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  startText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '700',
+    letterSpacing: 0.5,
   },
 });

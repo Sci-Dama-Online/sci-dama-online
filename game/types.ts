@@ -1,3 +1,5 @@
+import type { GameVariant, TimerOption } from './variants';
+
 export type Player = 'red' | 'black';
 export type PieceKind = 'man' | 'king';
 
@@ -30,4 +32,6 @@ export type GameState = {
   forcedPiece: Pos | null;
   winner: Player | 'tie' | null;
   scores: Scores;
+  variant: GameVariant;
+  timeLimitSeconds: TimerOption;
 };

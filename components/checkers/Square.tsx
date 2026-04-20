@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import type { Operation } from '@/game/rules';
 import type { Cell } from '@/game/types';
+import type { VariantPalette } from '@/game/variants';
 
 import { Piece } from './Piece';
 
@@ -13,6 +14,7 @@ type Props = {
   operation: Operation | null;
   selected: boolean;
   isLegalTarget: boolean;
+  palette: VariantPalette;
   onPress: () => void;
 };
 
@@ -23,6 +25,7 @@ export function Square({
   operation,
   selected,
   isLegalTarget,
+  palette,
   onPress,
 }: Props) {
   return (
@@ -35,7 +38,11 @@ export function Square({
       ]}
     >
       <LinearGradient
-        colors={dark ? ['#1b5e20', '#0b2e10'] : ['#FFFFFF', '#F0EEE9']}
+        colors={
+          dark
+            ? [palette.boardDarkFrom, palette.boardDarkTo]
+            : [palette.boardLightFrom, palette.boardLightTo]
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}

@@ -143,6 +143,8 @@ export type Database = {
           red_score: number
           room_id: string | null
           started_at: string
+          time_limit_seconds: number | null
+          variant: Database["public"]["Enums"]["game_variant"]
           winner_id: string | null
         }
         Insert: {
@@ -155,6 +157,8 @@ export type Database = {
           red_score?: number
           room_id?: string | null
           started_at?: string
+          time_limit_seconds?: number | null
+          variant?: Database["public"]["Enums"]["game_variant"]
           winner_id?: string | null
         }
         Update: {
@@ -167,6 +171,8 @@ export type Database = {
           red_score?: number
           room_id?: string | null
           started_at?: string
+          time_limit_seconds?: number | null
+          variant?: Database["public"]["Enums"]["game_variant"]
           winner_id?: string | null
         }
         Relationships: [
@@ -330,6 +336,8 @@ export type Database = {
           match_id: string | null
           opponent_id: string | null
           status: Database["public"]["Enums"]["room_status"]
+          time_limit_seconds: number | null
+          variant: Database["public"]["Enums"]["game_variant"]
           visibility: Database["public"]["Enums"]["room_visibility"]
         }
         Insert: {
@@ -340,6 +348,8 @@ export type Database = {
           match_id?: string | null
           opponent_id?: string | null
           status?: Database["public"]["Enums"]["room_status"]
+          time_limit_seconds?: number | null
+          variant?: Database["public"]["Enums"]["game_variant"]
           visibility: Database["public"]["Enums"]["room_visibility"]
         }
         Update: {
@@ -350,6 +360,8 @@ export type Database = {
           match_id?: string | null
           opponent_id?: string | null
           status?: Database["public"]["Enums"]["room_status"]
+          time_limit_seconds?: number | null
+          variant?: Database["public"]["Enums"]["game_variant"]
           visibility?: Database["public"]["Enums"]["room_visibility"]
         }
         Relationships: [
@@ -363,6 +375,41 @@ export type Database = {
           {
             foreignKeyName: "rooms_opponent_id_fkey"
             columns: ["opponent_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      variant_ratings: {
+        Row: {
+          losses: number
+          rating: number
+          updated_at: string
+          user_id: string
+          variant: Database["public"]["Enums"]["game_variant"]
+          wins: number
+        }
+        Insert: {
+          losses?: number
+          rating?: number
+          updated_at?: string
+          user_id: string
+          variant: Database["public"]["Enums"]["game_variant"]
+          wins?: number
+        }
+        Update: {
+          losses?: number
+          rating?: number
+          updated_at?: string
+          user_id?: string
+          variant?: Database["public"]["Enums"]["game_variant"]
+          wins?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "variant_ratings_user_id_fkey"
+            columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -384,6 +431,8 @@ export type Database = {
           match_id: string | null
           opponent_id: string | null
           status: Database["public"]["Enums"]["room_status"]
+          time_limit_seconds: number | null
+          variant: Database["public"]["Enums"]["game_variant"]
           visibility: Database["public"]["Enums"]["room_visibility"]
         }
         SetofOptions: {
@@ -396,6 +445,7 @@ export type Database = {
       tier: { Args: { r: number }; Returns: string }
     }
     Enums: {
+      game_variant: "electro" | "sci_notation" | "thi" | "thermo"
       piece_color: "red" | "black"
       reaction_kind: "like"
       room_status: "waiting" | "active" | "finished"
@@ -527,6 +577,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      game_variant: ["electro", "sci_notation", "thi", "thermo"],
       piece_color: ["red", "black"],
       reaction_kind: ["like"],
       room_status: ["waiting", "active", "finished"],

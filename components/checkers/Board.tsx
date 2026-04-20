@@ -2,6 +2,7 @@ import { StyleSheet, View } from 'react-native';
 
 import { BOARD_SIZE, getSquareOperation, isDarkSquare, posEquals } from '@/game/rules';
 import type { GameState } from '@/game/types';
+import { VARIANTS } from '@/game/variants';
 
 import { Square } from './Square';
 
@@ -15,9 +16,10 @@ const BORDER_WIDTH = 6;
 
 export function Board({ state, size, onSquarePress }: Props) {
   const squareSize = size / BOARD_SIZE;
+  const palette = VARIANTS[state.variant].palette;
 
   return (
-    <View style={[styles.frame, { padding: BORDER_WIDTH }]}>
+    <View style={[styles.frame, { padding: BORDER_WIDTH, backgroundColor: palette.frame }]}>
       <View style={{ width: size, height: size }}>
         {state.board.map((row, r) => (
           <View key={r} style={styles.row}>
@@ -36,6 +38,7 @@ export function Board({ state, size, onSquarePress }: Props) {
                   operation={getSquareOperation(r, c)}
                   selected={selected}
                   isLegalTarget={isLegalTarget}
+                  palette={palette}
                   onPress={() => onSquarePress(r, c)}
                 />
               );

@@ -1,4 +1,5 @@
 import type { Board, GameState, Move, Piece, Player, Pos, Scores } from './types';
+import type { GameVariant, TimerOption } from './variants';
 
 export const BOARD_SIZE = 8;
 
@@ -78,7 +79,10 @@ export function initialBoard(): Board {
   return board;
 }
 
-export function initialState(): GameState {
+export function initialState(
+  variant: GameVariant = 'electro',
+  timeLimitSeconds: TimerOption = null,
+): GameState {
   const board = initialBoard();
   const turn: Player = 'red';
   return {
@@ -90,6 +94,8 @@ export function initialState(): GameState {
     forcedPiece: null,
     winner: null,
     scores: { red: 0, black: 0 },
+    variant,
+    timeLimitSeconds,
   };
 }
 
@@ -382,5 +388,7 @@ export function applyMove(state: GameState, move: Move): GameState {
     forcedPiece,
     winner,
     scores,
+    variant: state.variant,
+    timeLimitSeconds: state.timeLimitSeconds,
   };
 }
