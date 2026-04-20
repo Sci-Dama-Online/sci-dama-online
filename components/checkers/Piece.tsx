@@ -8,10 +8,18 @@ type Props = {
 };
 
 export function Piece({ piece, size }: Props) {
-  const diameter = size * 0.78;
+  const diameter = size * 0.88;
   const backgroundColor = piece.player === 'red' ? '#c0392b' : '#1e1e1e';
-  const borderColor = piece.player === 'red' ? '#7d1f14' : '#000';
-  const fontSize = diameter * 0.45;
+  const isKing = piece.kind === 'king';
+  const borderColor = isKing
+    ? '#f1c40f'
+    : piece.player === 'red'
+      ? '#7d1f14'
+      : '#000';
+  const borderWidth = isKing ? 3 : 2;
+
+  const len = piece.label.length;
+  const fontSize = len >= 5 ? diameter * 0.22 : len === 4 ? diameter * 0.26 : diameter * 0.32;
 
   return (
     <View
@@ -23,23 +31,23 @@ export function Piece({ piece, size }: Props) {
           borderRadius: diameter / 2,
           backgroundColor,
           borderColor,
+          borderWidth,
         },
       ]}
     >
-      {piece.kind === 'king' ? (
-        <Text style={[styles.crown, { fontSize }]}>K</Text>
-      ) : null}
+      <Text style={[styles.label, { fontSize }]} numberOfLines={1}>
+        {piece.label}
+      </Text>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   chip: {
-    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  crown: {
+  label: {
     color: '#fff',
     fontWeight: '700',
   },

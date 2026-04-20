@@ -40,7 +40,7 @@ export function Square({
         end={{ x: 1, y: 1 }}
         style={StyleSheet.absoluteFill}
       />
-      {operation ? (
+      {operation && !cell ? (
         <Text style={[styles.operation, { fontSize: size * 0.5 }]}>
           {operation}
         </Text>

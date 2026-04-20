@@ -48,19 +48,32 @@ export function posEquals(a: Pos | null, b: Pos | null): boolean {
   return a[0] === b[0] && a[1] === b[1];
 }
 
+// Electro Sci Dama starting position. Chips sit on LIGHT squares only.
+// Red occupies rows 5–7; row 7 is red's back row, row 5 is the front.
+// Black is the 180° rotational mirror on rows 0–2.
+type Setup = ReadonlyArray<readonly [number, number, string]>;
+
+const RED_SETUP: Setup = [
+  [5, 1, 'P10'],  [5, 3, '7KWH'],  [5, 5, 'P2'],    [5, 7, '5KWH'],
+  [6, 0, '1KWH'], [6, 2, 'P4'],    [6, 4, '11KWH'], [6, 6, 'P8'],
+  [7, 1, 'P12'],  [7, 3, '9KWH'],  [7, 5, 'P6'],    [7, 7, '3KWH'],
+];
+
+const BLACK_SETUP: Setup = [
+  [0, 0, '3KWH'], [0, 2, 'P6'],    [0, 4, '9KWH'],  [0, 6, 'P12'],
+  [1, 1, 'P8'],   [1, 3, '11KWH'], [1, 5, 'P4'],    [1, 7, '1KWH'],
+  [2, 0, '5KWH'], [2, 2, 'P2'],    [2, 4, '7KWH'],  [2, 6, 'P10'],
+];
+
 export function initialBoard(): Board {
   const board: Board = Array.from({ length: BOARD_SIZE }, () =>
     Array<null>(BOARD_SIZE).fill(null),
   );
-  for (let r = 0; r < 3; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      if (isDarkSquare(r, c)) board[r][c] = { player: 'black', kind: 'man' };
-    }
+  for (const [r, c, label] of RED_SETUP) {
+    board[r][c] = { player: 'red', kind: 'man', label };
   }
-  for (let r = 5; r < BOARD_SIZE; r++) {
-    for (let c = 0; c < BOARD_SIZE; c++) {
-      if (isDarkSquare(r, c)) board[r][c] = { player: 'red', kind: 'man' };
-    }
+  for (const [r, c, label] of BLACK_SETUP) {
+    board[r][c] = { player: 'black', kind: 'man', label };
   }
   return board;
 }

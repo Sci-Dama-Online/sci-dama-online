@@ -4,6 +4,7 @@ export type PieceKind = 'man' | 'king';
 export type Piece = {
   player: Player;
   kind: PieceKind;
+  label: string;
 };
 
 export type Cell = Piece | null;
