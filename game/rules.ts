@@ -1,4 +1,4 @@
-import type { Board, GameState, Move, Piece, Player, Pos } from './types';
+import type { Board, GameState, Move, Piece, Player, Pos, Scores } from './types';
 
 export const BOARD_SIZE = 8;
 
@@ -89,7 +89,37 @@ export function initialState(): GameState {
     mustCapture: hasAnyCapture(board, turn),
     forcedPiece: null,
     winner: null,
+    scores: { red: 0, black: 0 },
   };
+}
+
+// Parses a chip label into its peso value. `P##` is already in pesos;
+// `##KWH` is multiplied by 1.5 to convert from kWh to pesos.
+export function labelToPeso(label: string): number {
+  if (label.startsWith('P')) {
+    return Number(label.slice(1));
+  }
+  if (label.endsWith('KWH')) {
+    return Number(label.slice(0, -3)) * 1.5;
+  }
+  return 0;
+}
+
+// Score gained by the taker for a single capture. Applies the landing-square
+// operation between taker's and taken's peso values, then a ×1.5 multiplier
+// if the taker is a king.
+export function scoreDelta(taker: Piece, taken: Piece, op: Operation): number {
+  const takerP = labelToPeso(taker.label);
+  const takenP = labelToPeso(taken.label);
+  let result: number;
+  switch (op) {
+    case '+': result = takerP + takenP; break;
+    case '-': result = takerP - takenP; break;
+    case '×': result = takerP * takenP; break;
+    case '÷': result = takenP === 0 ? 0 : takerP / takenP; break;
+  }
+  if (taker.kind === 'king') result *= 1.5;
+  return result;
 }
 
 function forwardDir(player: Player): number {
@@ -287,6 +317,17 @@ export function applyMove(state: GameState, move: Move): GameState {
   const piece = board[fr][fc];
   if (!piece) return state;
 
+  const scores: Scores = { ...state.scores };
+  if (move.captured.length > 0) {
+    const op = getSquareOperation(tr, tc);
+    if (op) {
+      for (const [cr, cc] of move.captured) {
+        const taken = state.board[cr][cc];
+        if (taken) scores[piece.player] += scoreDelta(piece, taken, op);
+      }
+    }
+  }
+
   board[fr][fc] = null;
   for (const [cr, cc] of move.captured) {
     board[cr][cc] = null;
@@ -325,9 +366,11 @@ export function applyMove(state: GameState, move: Move): GameState {
 
   const mustCapture = hasAnyCapture(board, turn);
 
-  let winner: Player | null = null;
+  let winner: Player | 'tie' | null = null;
   if (countPieces(board, turn) === 0 || !hasAnyMove(board, turn)) {
-    winner = other(turn);
+    if (scores.red < scores.black) winner = 'red';
+    else if (scores.black < scores.red) winner = 'black';
+    else winner = 'tie';
   }
 
   return {
@@ -338,5 +381,6 @@ export function applyMove(state: GameState, move: Move): GameState {
     mustCapture,
     forcedPiece,
     winner,
+    scores,
   };
 }

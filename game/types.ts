@@ -19,6 +19,8 @@ export type Move = {
   promoted: boolean;
 };
 
+export type Scores = Record<Player, number>;
+
 export type GameState = {
   board: Board;
   turn: Player;
@@ -26,5 +28,6 @@ export type GameState = {
   legalTargets: Move[];
   mustCapture: boolean;
   forcedPiece: Pos | null;
-  winner: Player | null;
+  winner: Player | 'tie' | null;
+  scores: Scores;
 };
