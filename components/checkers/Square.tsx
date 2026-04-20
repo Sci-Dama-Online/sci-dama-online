@@ -31,18 +31,15 @@ export function Square({
       style={[
         styles.square,
         { width: size, height: size },
-        !dark && styles.lightSquare,
         selected && styles.selected,
       ]}
     >
-      {dark ? (
-        <LinearGradient
-          colors={['#1b5e20', '#0b2e10']}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={StyleSheet.absoluteFill}
-        />
-      ) : null}
+      <LinearGradient
+        colors={dark ? ['#1b5e20', '#0b2e10'] : ['#FFFFFF', '#F0EEE9']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={StyleSheet.absoluteFill}
+      />
       {operation ? (
         <Text style={[styles.operation, { fontSize: size * 0.5 }]}>
           {operation}
@@ -71,9 +68,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
-  },
-  lightSquare: {
-    backgroundColor: '#f0d9b5',
   },
   selected: {
     borderWidth: 3,
