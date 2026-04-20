@@ -1,5 +1,7 @@
-import { Pressable, StyleSheet, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
+import type { Operation } from '@/game/rules';
 import type { Cell } from '@/game/types';
 
 import { Piece } from './Piece';
@@ -8,23 +10,44 @@ type Props = {
   cell: Cell;
   dark: boolean;
   size: number;
+  operation: Operation | null;
   selected: boolean;
   isLegalTarget: boolean;
   onPress: () => void;
 };
 
-export function Square({ cell, dark, size, selected, isLegalTarget, onPress }: Props) {
-  const backgroundColor = dark ? '#b58863' : '#f0d9b5';
-
+export function Square({
+  cell,
+  dark,
+  size,
+  operation,
+  selected,
+  isLegalTarget,
+  onPress,
+}: Props) {
   return (
     <Pressable
       onPress={onPress}
       style={[
         styles.square,
-        { width: size, height: size, backgroundColor },
+        { width: size, height: size },
+        !dark && styles.lightSquare,
         selected && styles.selected,
       ]}
     >
+      {dark ? (
+        <LinearGradient
+          colors={['#1b5e20', '#0b2e10']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : null}
+      {operation ? (
+        <Text style={[styles.operation, { fontSize: size * 0.5 }]}>
+          {operation}
+        </Text>
+      ) : null}
       {cell ? <Piece piece={cell} size={size} /> : null}
       {isLegalTarget ? (
         <View
@@ -47,10 +70,18 @@ const styles = StyleSheet.create({
   square: {
     alignItems: 'center',
     justifyContent: 'center',
+    overflow: 'hidden',
+  },
+  lightSquare: {
+    backgroundColor: '#f0d9b5',
   },
   selected: {
     borderWidth: 3,
     borderColor: '#f1c40f',
+  },
+  operation: {
+    color: 'rgba(40, 40, 40, 0.75)',
+    fontWeight: '700',
   },
   target: {
     position: 'absolute',

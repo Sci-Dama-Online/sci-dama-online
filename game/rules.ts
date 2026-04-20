@@ -17,6 +17,32 @@ export function isDarkSquare(r: number, c: number): boolean {
   return (r + c) % 2 === 1;
 }
 
+export type Operation = '+' | '-' | '×' | '÷';
+
+// Operations are printed on the LIGHT (non-playable) squares only.
+// Pattern (row 0 → row 7, reading the 4 light squares of each row left→right):
+//   ×  ÷  -  +
+//   ÷  ×  +  -
+//   -  +  ×  ÷
+//   +  -  ÷  ×
+//   (repeats for rows 4–7)
+// Light-square column indices per row:
+//   Even rows (r even): light cols 0,2,4,6 → idx c/2
+//   Odd rows  (r odd) : light cols 1,3,5,7 → idx (c-1)/2
+const OPS_PATTERN: readonly (readonly Operation[])[] = [
+  ['×', '÷', '-', '+'],
+  ['÷', '×', '+', '-'],
+  ['-', '+', '×', '÷'],
+  ['+', '-', '÷', '×'],
+];
+
+export function getSquareOperation(r: number, c: number): Operation | null {
+  if (isDarkSquare(r, c)) return null;
+  const row = OPS_PATTERN[r % 4];
+  const idx = r % 2 === 0 ? c / 2 : (c - 1) / 2;
+  return row[idx];
+}
+
 export function posEquals(a: Pos | null, b: Pos | null): boolean {
   if (!a || !b) return false;
   return a[0] === b[0] && a[1] === b[1];

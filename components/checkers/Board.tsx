@@ -1,6 +1,6 @@
 import { StyleSheet, View } from 'react-native';
 
-import { BOARD_SIZE, isDarkSquare, posEquals } from '@/game/rules';
+import { BOARD_SIZE, getSquareOperation, isDarkSquare, posEquals } from '@/game/rules';
 import type { GameState } from '@/game/types';
 
 import { Square } from './Square';
@@ -30,6 +30,7 @@ export function Board({ state, size, onSquarePress }: Props) {
                 cell={cell}
                 dark={dark}
                 size={squareSize}
+                operation={getSquareOperation(r, c)}
                 selected={selected}
                 isLegalTarget={isLegalTarget}
                 onPress={() => onSquarePress(r, c)}
