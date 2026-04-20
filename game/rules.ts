@@ -195,14 +195,49 @@ export function getCaptures(board: Board, r: number, c: number): Move[] {
   return moves;
 }
 
+function simulateMove(board: Board, move: Move): Board {
+  const b: Board = board.map((row) => row.slice());
+  const [fr, fc] = move.from;
+  const [tr, tc] = move.to;
+  const piece = b[fr][fc];
+  if (!piece) return b;
+  b[fr][fc] = null;
+  for (const [cr, cc] of move.captured) b[cr][cc] = null;
+  b[tr][tc] = move.promoted ? { ...piece, kind: 'king' } : piece;
+  return b;
+}
+
+// When a king captures, its flying nature gives it multiple possible landing
+// squares past the enemy. If some landings enable another capture and others
+// don't, the king must pick a chain-continuing landing — it can't "dodge" a
+// takable piece by stopping short or skipping past.
+function filterKingChainContinuers(
+  board: Board,
+  from: Pos,
+  captures: Move[],
+): Move[] {
+  if (captures.length === 0) return captures;
+  const piece = board[from[0]][from[1]];
+  if (!piece || piece.kind !== 'king') return captures;
+  const continuers = captures.filter((m) => {
+    const next = simulateMove(board, m);
+    return getCaptures(next, m.to[0], m.to[1]).length > 0;
+  });
+  return continuers.length > 0 ? continuers : captures;
+}
+
 export function getLegalMovesForPiece(
   board: Board,
   r: number,
   c: number,
   mustCapture: boolean,
 ): Move[] {
-  if (mustCapture) return getCaptures(board, r, c);
-  const captures = getCaptures(board, r, c);
+  const captures = filterKingChainContinuers(
+    board,
+    [r, c],
+    getCaptures(board, r, c),
+  );
+  if (mustCapture) return captures;
   if (captures.length > 0) return captures;
   return getSlides(board, r, c);
 }
@@ -263,7 +298,11 @@ export function applyMove(state: GameState, move: Move): GameState {
   let continueChain = false;
   let nextCaptures: Move[] = [];
   if (wasCapture && !move.promoted) {
-    nextCaptures = getCaptures(board, tr, tc);
+    nextCaptures = filterKingChainContinuers(
+      board,
+      [tr, tc],
+      getCaptures(board, tr, tc),
+    );
     if (nextCaptures.length > 0) continueChain = true;
   }
 
