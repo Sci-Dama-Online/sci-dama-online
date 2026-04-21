@@ -2,8 +2,10 @@ import type {
   BankEvent,
   Board,
   CaptureEvent,
+  CaptureResult,
   GameState,
   Move,
+  NoScoreReason,
   Operation,
   Piece,
   Player,
@@ -119,6 +121,11 @@ export type CaptureMath = {
   //   2 = exactly one of the two is a dama
   //   4 = a dama takes another dama
   captureMultiplier: 1 | 2 | 4;
+  // True when the variant rejects this capture (e.g. THI mixed units,
+  // negative result, or off-table lookup). `delta` is 0 and the dama bonus
+  // is skipped.
+  isNoScore: boolean;
+  noScoreReason: NoScoreReason | null;
   delta: number;
 };
 
@@ -128,19 +135,40 @@ export function computeCaptureDelta(
   taken: Piece,
   op: Operation,
 ): CaptureMath {
-  const takerValue = valueOf(variant, taker.label);
-  const takenValue = valueOf(variant, taken.label);
-  const base = applyOp(op, takerValue, takenValue);
+  const variantMeta = VARIANTS[variant];
+
+  // Variants may override capture math (THI uses this for unit-matching and
+  // the humidity → °F lookup). Default path uses `valueOf` and the op
+  // directly, with no NS.
+  const result: CaptureResult = variantMeta.computeCapture
+    ? variantMeta.computeCapture(taker, taken, op)
+    : (() => {
+        const a = valueOf(variant, taker.label);
+        const b = valueOf(variant, taken.label);
+        return {
+          takerValue: a,
+          takenValue: b,
+          scoredValue: applyOp(op, a, b),
+          isNoScore: false,
+          noScoreReason: null,
+        };
+      })();
+
   const takerIsDama = taker.kind === 'dama';
   const takenIsDama = taken.kind === 'dama';
   let captureMultiplier: 1 | 2 | 4 = 1;
   if (takerIsDama && takenIsDama) captureMultiplier = 4;
   else if (takerIsDama || takenIsDama) captureMultiplier = 2;
+
+  const delta = result.isNoScore ? 0 : result.scoredValue * captureMultiplier;
+
   return {
-    takerValue,
-    takenValue,
+    takerValue: result.takerValue,
+    takenValue: result.takenValue,
     captureMultiplier,
-    delta: base * captureMultiplier,
+    isNoScore: result.isNoScore,
+    noScoreReason: result.noScoreReason,
+    delta,
   };
 }
 
@@ -456,6 +484,8 @@ export function applyMove(state: GameState, move: Move): GameState {
         },
         operation: op,
         captureMultiplier: math.captureMultiplier,
+        isNoScore: math.isNoScore,
+        noScoreReason: math.noScoreReason,
         delta: math.delta,
         playerTotalAfter: scores[piece.player],
       };

@@ -210,17 +210,29 @@ function CaptureRow({
         <Text style={styles.op}>{event.operation}</Text>
         {'  '}
         {formatChipValue(variant, event.taken.value)}
-        {event.captureMultiplier !== 1 ? (
+        {event.isNoScore ? (
           <Text>
             {'  '}
-            <Text style={styles.op}>×</Text> {event.captureMultiplier}{' '}
-            <Text style={styles.hint}>({bonusHint})</Text>
+            <Text style={styles.op}>=</Text>
+            {'  '}
+            <Text style={styles.nsBadge}>NS</Text>{' '}
+            <Text style={styles.hint}>({event.noScoreReason ?? 'no score'})</Text>
           </Text>
-        ) : null}
-        {'  '}
-        <Text style={styles.op}>=</Text>
-        {'  '}
-        <Text style={styles.rowDelta}>{formatScore(variant, event.delta)}</Text>
+        ) : (
+          <Text>
+            {event.captureMultiplier !== 1 ? (
+              <Text>
+                {'  '}
+                <Text style={styles.op}>×</Text> {event.captureMultiplier}{' '}
+                <Text style={styles.hint}>({bonusHint})</Text>
+              </Text>
+            ) : null}
+            {'  '}
+            <Text style={styles.op}>=</Text>
+            {'  '}
+            <Text style={styles.rowDelta}>{formatScore(variant, event.delta)}</Text>
+          </Text>
+        )}
       </Text>
     </View>
   );
@@ -379,6 +391,11 @@ const styles = StyleSheet.create({
   op: { fontWeight: '700', color: '#2c3e50' },
   hint: { color: '#888', fontStyle: 'italic' },
   rowDelta: { fontWeight: '700', color: '#111' },
+  nsBadge: {
+    fontWeight: '800',
+    color: '#b03a2e',
+    letterSpacing: 0.6,
+  },
 
   finalLine: {
     padding: 14,

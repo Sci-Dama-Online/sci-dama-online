@@ -26,6 +26,24 @@ export type Scores = Record<Player, number>;
 
 export type Operation = '+' | '-' | '×' | '÷';
 
+// Explanation of why a variant rejected a capture. Presented verbatim in the
+// post-game breakdown next to the "NS" badge.
+export type NoScoreReason = 'mixed units' | 'negative result' | 'off table';
+
+// Full outcome of a single capture from the variant's perspective. Allows
+// variants (notably THI) to inject NS rules and unit-aware scoring without
+// touching the generic rules engine.
+export type CaptureResult = {
+  takerValue: number;
+  takenValue: number;
+  // Final numeric value that becomes the delta (before the dama × 2 / × 4
+  // bonus). For THI %+% captures this is already the °F table lookup of the
+  // combined humidity; for other variants it's just takerValue OP takenValue.
+  scoredValue: number;
+  isNoScore: boolean;
+  noScoreReason: NoScoreReason | null;
+};
+
 // Single capture event appended to `scoreLog` during `applyMove`.
 // Holds everything the post-game breakdown needs to explain how this capture's
 // delta was produced, in human-readable form.
@@ -41,6 +59,11 @@ export type CaptureEvent = {
   //   2 = exactly one side is a dama
   //   4 = dama takes another dama
   captureMultiplier: 1 | 2 | 4;
+  // True when a variant's No-Score rule rejected this capture (e.g. THI mixed
+  // units, negative result, or off-table result). `delta` is 0 in that case
+  // and the dama bonus does not apply.
+  isNoScore: boolean;
+  noScoreReason: NoScoreReason | null;
   delta: number;
   playerTotalAfter: number;
 };
