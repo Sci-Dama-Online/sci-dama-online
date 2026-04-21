@@ -1,5 +1,22 @@
-import type { Board, GameState, Move, Piece, Player, Pos, Scores } from './types';
-import type { GameVariant, TimerOption } from './variants';
+import type {
+  BankEvent,
+  Board,
+  CaptureEvent,
+  GameState,
+  Move,
+  Operation,
+  Piece,
+  Player,
+  Pos,
+  ScoreEvent,
+  Scores,
+} from './types';
+import {
+  VARIANTS,
+  valueOf,
+  type GameVariant,
+  type TimerOption,
+} from './variants';
 
 export const BOARD_SIZE = 8;
 
@@ -17,8 +34,6 @@ export function inBounds(r: number, c: number): boolean {
 export function isDarkSquare(r: number, c: number): boolean {
   return (r + c) % 2 === 1;
 }
-
-export type Operation = '+' | '-' | '×' | '÷';
 
 // Operations are printed on the LIGHT (non-playable) squares only.
 // Pattern (row 0 → row 7, reading the 4 light squares of each row left→right):
@@ -44,36 +59,26 @@ export function getSquareOperation(r: number, c: number): Operation | null {
   return row[idx];
 }
 
+// Re-export for callers (Square.tsx etc) that want the Operation type.
+export type { Operation } from './types';
+
 export function posEquals(a: Pos | null, b: Pos | null): boolean {
   if (!a || !b) return false;
   return a[0] === b[0] && a[1] === b[1];
 }
 
-// Electro Sci Dama starting position. Chips sit on LIGHT squares only.
-// Red occupies rows 5–7; row 7 is red's back row, row 5 is the front.
-// Black is the 180° rotational mirror on rows 0–2.
-type Setup = ReadonlyArray<readonly [number, number, string]>;
-
-const RED_SETUP: Setup = [
-  [5, 1, 'P10'],  [5, 3, '7KWH'],  [5, 5, 'P2'],    [5, 7, '5KWH'],
-  [6, 0, '1KWH'], [6, 2, 'P4'],    [6, 4, '11KWH'], [6, 6, 'P8'],
-  [7, 1, 'P12'],  [7, 3, '9KWH'],  [7, 5, 'P6'],    [7, 7, '3KWH'],
-];
-
-const BLACK_SETUP: Setup = [
-  [0, 0, '3KWH'], [0, 2, 'P6'],    [0, 4, '9KWH'],  [0, 6, 'P12'],
-  [1, 1, 'P8'],   [1, 3, '11KWH'], [1, 5, 'P4'],    [1, 7, '1KWH'],
-  [2, 0, '5KWH'], [2, 2, 'P2'],    [2, 4, '7KWH'],  [2, 6, 'P10'],
-];
-
-export function initialBoard(): Board {
+// Builds the starting position for the given variant using its chip layout
+// from `game/variants.ts`. Chips sit on LIGHT squares only; red occupies rows
+// 5–7 (row 7 = back), black is the 180° mirror on rows 0–2.
+export function initialBoard(variant: GameVariant = 'electro'): Board {
   const board: Board = Array.from({ length: BOARD_SIZE }, () =>
     Array<null>(BOARD_SIZE).fill(null),
   );
-  for (const [r, c, label] of RED_SETUP) {
+  const chips = VARIANTS[variant].chips;
+  for (const [r, c, label] of chips.red) {
     board[r][c] = { player: 'red', kind: 'man', label };
   }
-  for (const [r, c, label] of BLACK_SETUP) {
+  for (const [r, c, label] of chips.black) {
     board[r][c] = { player: 'black', kind: 'man', label };
   }
   return board;
@@ -83,7 +88,7 @@ export function initialState(
   variant: GameVariant = 'electro',
   timeLimitSeconds: TimerOption = null,
 ): GameState {
-  const board = initialBoard();
+  const board = initialBoard(variant);
   const turn: Player = 'red';
   return {
     board,
@@ -97,36 +102,54 @@ export function initialState(
     variant,
     timeLimitSeconds,
     timerStartedAtMs: null,
+    scoreLog: [],
   };
 }
 
-// Parses a chip label into its peso value. `P##` is already in pesos;
-// `##KWH` is multiplied by 1.5 to convert from kWh to pesos.
-export function labelToPeso(label: string): number {
-  if (label.startsWith('P')) {
-    return Number(label.slice(1));
+// Applies an arithmetic operation between two numeric chip values. Division
+// by zero is treated as zero (defensive — no chip has value 0 today).
+function applyOp(op: Operation, a: number, b: number): number {
+  switch (op) {
+    case '+': return a + b;
+    case '-': return a - b;
+    case '×': return a * b;
+    case '÷': return b === 0 ? 0 : a / b;
   }
-  if (label.endsWith('KWH')) {
-    return Number(label.slice(0, -3)) * 1.5;
-  }
-  return 0;
 }
 
-// Score gained by the taker for a single capture. Applies the landing-square
-// operation between taker's and taken's peso values, then a ×1.5 multiplier
-// if the taker is a king.
-export function scoreDelta(taker: Piece, taken: Piece, op: Operation): number {
-  const takerP = labelToPeso(taker.label);
-  const takenP = labelToPeso(taken.label);
-  let result: number;
-  switch (op) {
-    case '+': result = takerP + takenP; break;
-    case '-': result = takerP - takenP; break;
-    case '×': result = takerP * takenP; break;
-    case '÷': result = takenP === 0 ? 0 : takerP / takenP; break;
-  }
-  if (taker.kind === 'king') result *= 1.5;
-  return result;
+// Delta + the intermediate values used to produce it, so the post-game
+// breakdown can show the exact arithmetic a capture performed.
+export type CaptureMath = {
+  takerValue: number;
+  takenValue: number;
+  // Dama bonus applied to the operation result:
+  //   1 = ordinary chip takes an ordinary chip
+  //   2 = exactly one of the two is a dama
+  //   4 = a dama takes another dama
+  captureMultiplier: 1 | 2 | 4;
+  delta: number;
+};
+
+export function computeCaptureDelta(
+  variant: GameVariant,
+  taker: Piece,
+  taken: Piece,
+  op: Operation,
+): CaptureMath {
+  const takerValue = valueOf(variant, taker.label);
+  const takenValue = valueOf(variant, taken.label);
+  const base = applyOp(op, takerValue, takenValue);
+  const takerIsDama = taker.kind === 'dama';
+  const takenIsDama = taken.kind === 'dama';
+  let captureMultiplier: 1 | 2 | 4 = 1;
+  if (takerIsDama && takenIsDama) captureMultiplier = 4;
+  else if (takerIsDama || takenIsDama) captureMultiplier = 2;
+  return {
+    takerValue,
+    takenValue,
+    captureMultiplier,
+    delta: base * captureMultiplier,
+  };
 }
 
 function forwardDir(player: Player): number {
@@ -240,7 +263,7 @@ function simulateMove(board: Board, move: Move): Board {
   if (!piece) return b;
   b[fr][fc] = null;
   for (const [cr, cc] of move.captured) b[cr][cc] = null;
-  b[tr][tc] = move.promoted ? { ...piece, kind: 'king' } : piece;
+  b[tr][tc] = move.promoted ? { ...piece, kind: 'dama' } : piece;
   return b;
 }
 
@@ -317,6 +340,86 @@ function other(player: Player): Player {
   return player === 'red' ? 'black' : 'red';
 }
 
+// Collects the bankable chip contributions for one player — used both for
+// `remainingChipValue` and for building the end-of-match BankEvent.
+function collectRemainingChips(
+  variant: GameVariant,
+  board: Board,
+  player: Player,
+): BankEvent['chips'] {
+  const chips: BankEvent['chips'] = [];
+  for (const row of board) {
+    for (const cell of row) {
+      if (!cell || cell.player !== player) continue;
+      const baseValue = valueOf(variant, cell.label);
+      const isKing = cell.kind === 'king';
+      const contribution = isKing ? baseValue * 1.5 : baseValue;
+      chips.push({ label: cell.label, isKing, baseValue, contribution });
+    }
+  }
+  return chips;
+}
+
+// Peso value a player's remaining chips are worth when banked at match end.
+// Kept as a convenience alias over `collectRemainingChips`.
+export function remainingChipValue(
+  variant: GameVariant,
+  board: Board,
+  player: Player,
+): number {
+  return collectRemainingChips(variant, board, player).reduce(
+    (sum, c) => sum + c.contribution,
+    0,
+  );
+}
+
+// Ends the match: both players' remaining chips are banked into their scores
+// (converted to peso, × 1.5 for kings). Lower final score wins — idle chips
+// count against you. Returns the new scores, the winner, and the two
+// BankEvents that should be appended to the scoreLog.
+export function endGame(
+  variant: GameVariant,
+  board: Board,
+  scores: Scores,
+): {
+  scores: Scores;
+  winner: Player | 'tie';
+  bankEvents: [BankEvent, BankEvent];
+} {
+  const redChips = collectRemainingChips(variant, board, 'red');
+  const blackChips = collectRemainingChips(variant, board, 'black');
+  const redSubtotal = redChips.reduce((s, c) => s + c.contribution, 0);
+  const blackSubtotal = blackChips.reduce((s, c) => s + c.contribution, 0);
+  const red = scores.red + redSubtotal;
+  const black = scores.black + blackSubtotal;
+
+  const redBank: BankEvent = {
+    kind: 'bank',
+    player: 'red',
+    chips: redChips,
+    subtotal: redSubtotal,
+    finalTotal: red,
+  };
+  const blackBank: BankEvent = {
+    kind: 'bank',
+    player: 'black',
+    chips: blackChips,
+    subtotal: blackSubtotal,
+    finalTotal: black,
+  };
+
+  let winner: Player | 'tie';
+  if (red < black) winner = 'red';
+  else if (black < red) winner = 'black';
+  else winner = 'tie';
+
+  return {
+    scores: { red, black },
+    winner,
+    bankEvents: [redBank, blackBank],
+  };
+}
+
 export function applyMove(state: GameState, move: Move): GameState {
   const board: Board = state.board.map((row) => row.slice());
   const [fr, fc] = move.from;
@@ -325,13 +428,40 @@ export function applyMove(state: GameState, move: Move): GameState {
   if (!piece) return state;
 
   const scores: Scores = { ...state.scores };
-  if (move.captured.length > 0) {
-    const op = getSquareOperation(tr, tc);
-    if (op) {
-      for (const [cr, cc] of move.captured) {
-        const taken = state.board[cr][cc];
-        if (taken) scores[piece.player] += scoreDelta(piece, taken, op);
-      }
+  const scoreLog: ScoreEvent[] = [...state.scoreLog];
+
+  const wasCapture = move.captured.length > 0;
+  const op = getSquareOperation(tr, tc);
+
+  // Log each captured chip separately so multi-jump chains produce multiple
+  // CaptureEvents. The pre-mutation `state.board` is the source of truth for
+  // the captured piece's details.
+  if (wasCapture && op) {
+    for (const [cr, cc] of move.captured) {
+      const taken = state.board[cr][cc];
+      if (!taken) continue;
+      const math = computeCaptureDelta(state.variant, piece, taken, op);
+      scores[piece.player] += math.delta;
+      const priorCaptureCount = scoreLog.reduce(
+        (n, e) => (e.kind === 'capture' ? n + 1 : n),
+        0,
+      );
+      const event: CaptureEvent = {
+        kind: 'capture',
+        moveNumber: priorCaptureCount + 1,
+        player: piece.player,
+        taker: {
+          label: piece.label,
+          isKing: piece.kind === 'king',
+          value: math.takerValue,
+        },
+        taken: { label: taken.label, value: math.takenValue },
+        operation: op,
+        kingBonusApplied: math.kingBonusApplied,
+        delta: math.delta,
+        playerTotalAfter: scores[piece.player],
+      };
+      scoreLog.push(event);
     }
   }
 
@@ -344,7 +474,6 @@ export function applyMove(state: GameState, move: Move): GameState {
   // keep chaining as a man, even if it just touched the back row.
   board[tr][tc] = piece;
 
-  const wasCapture = move.captured.length > 0;
   let continueChain = false;
   let nextCaptures: Move[] = [];
   if (wasCapture) {
@@ -384,10 +513,12 @@ export function applyMove(state: GameState, move: Move): GameState {
 
   let winner: Player | 'tie' | null = null;
   let finalScores = scores;
+  let finalLog = scoreLog;
   if (countPieces(board, turn) === 0 || !hasAnyMove(board, turn)) {
-    const ended = endGame(board, scores);
+    const ended = endGame(state.variant, board, scores);
     finalScores = ended.scores;
     winner = ended.winner;
+    finalLog = [...scoreLog, ...ended.bankEvents];
   }
 
   return {
@@ -402,36 +533,6 @@ export function applyMove(state: GameState, move: Move): GameState {
     variant: state.variant,
     timeLimitSeconds: state.timeLimitSeconds,
     timerStartedAtMs: state.timerStartedAtMs,
+    scoreLog: finalLog,
   };
-}
-
-// Peso value a piece is worth when it's banked at match end:
-// kWh → × 1.5 (via labelToPeso), and a king (promoted) → another × 1.5.
-export function remainingChipValue(board: Board, player: Player): number {
-  let total = 0;
-  for (const row of board) {
-    for (const cell of row) {
-      if (!cell || cell.player !== player) continue;
-      let v = labelToPeso(cell.label);
-      if (cell.kind === 'king') v *= 1.5;
-      total += v;
-    }
-  }
-  return total;
-}
-
-// Ends the match: every player's remaining chips are banked into their score
-// (converted to peso, with × 1.5 for kings). Lower final score wins — chips
-// left on the board count against you. Equal scores → tie.
-export function endGame(
-  board: Board,
-  scores: Scores,
-): { scores: Scores; winner: Player | 'tie' } {
-  const red = scores.red + remainingChipValue(board, 'red');
-  const black = scores.black + remainingChipValue(board, 'black');
-  let winner: Player | 'tie';
-  if (red < black) winner = 'red';
-  else if (black < red) winner = 'black';
-  else winner = 'tie';
-  return { scores: { red, black }, winner };
 }

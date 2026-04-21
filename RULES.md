@@ -20,6 +20,27 @@ Each player starts with **12 chips**. Every chip has a value printed on it:
 
 A kWh chip is worth **1.5 times** its number when counted as pesos. For example, 7KWH is worth 7 × 1.5 = 10.5 P.
 
+### Dama Sci-Notation chip values
+
+The Sci-Notation variant uses the same 12-per-side arrangement, but each chip shows a plain number **1 through 12** on its face. The chip's real value — the number used in scoring — is the decimal equivalent of its scientific-notation form.
+
+| Chip label | Scientific notation | Decimal value      |
+| ---------- | ------------------- | ------------------ |
+| 1          | 1.1 × 10⁻¹          | 0.11               |
+| 2          | 2.2 × 10²           | 220                |
+| 3          | 3.3 × 10⁻³          | 0.0033             |
+| 4          | 4.4 × 10⁴           | 44,000             |
+| 5          | 5.5 × 10⁻⁵          | 0.000055           |
+| 6          | 6.6 × 10⁶           | 6,600,000          |
+| 7          | 7.7 × 10⁻⁷          | 0.00000077         |
+| 8          | 8.8 × 10⁸           | 880,000,000        |
+| 9          | 9.9 × 10⁻⁹          | 0.0000000099       |
+| 10         | 1.01 × 10¹⁰         | 10,100,000,000     |
+| 11         | 1.111 × 10⁻¹¹       | 0.00000000001111   |
+| 12         | 1.212 × 10¹²        | 1,212,000,000,000  |
+
+Because these values span roughly 10⁻¹¹ to 10¹², scores in Sci-Notation display as `m.mm × 10ⁿ`. Tap any score pill in-match to see the exact decimal.
+
 Red plays from the bottom of the board, Black plays from the top. Red moves first.
 
 ## Starting position
@@ -109,7 +130,7 @@ After remaining chips are banked, look at the final scores:
 - **The player with the LOWER total wins.** This is Sci Dama's core rule — the lowest score always wins.
 - Equal scores → tie.
 
-The winner banner shows the final total for each side — that number already includes the remaining-chip additions.
+The winner banner shows the final total for each side — that number already includes the remaining-chip additions. For a full accounting, tap **"See how the score was computed →"** on the winner card to open a breakdown of every capture, every banked chip, and the arithmetic that produced the final totals.
 
 ## Turn summary
 

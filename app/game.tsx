@@ -1,9 +1,10 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Modal, Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Board } from '@/components/checkers/Board';
+import { ScoreBreakdown } from '@/components/score/ScoreBreakdown';
 import {
   applyMove,
   endGame,
@@ -11,18 +12,14 @@ import {
   initialState,
   posEquals,
 } from '@/game/rules';
-import type { GameState, Move } from '@/game/types';
+import type { GameState, Move, Player } from '@/game/types';
 import {
   TIMER_OPTIONS,
   VARIANTS,
   type GameVariant,
   type TimerOption,
 } from '@/game/variants';
-
-function formatScore(n: number): string {
-  const rounded = Math.round(n * 100) / 100;
-  return rounded.toString();
-}
+import { formatScore, toFullDecimal, toSciNotation } from '@/lib/format';
 
 function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -62,6 +59,10 @@ export default function GameScreen() {
   const [state, setState] = useState<GameState>(() =>
     initialState(initialVariant, initialTimer),
   );
+  // Which score pill the player has tapped open, or null.
+  const [expandedScore, setExpandedScore] = useState<Player | null>(null);
+  // Post-game breakdown modal visibility.
+  const [breakdownOpen, setBreakdownOpen] = useState(false);
 
   const { width, height } = useWindowDimensions();
   const boardSize = useMemo(
@@ -81,8 +82,13 @@ export default function GameScreen() {
     if (state.winner) return;
     if (remaining === null) return;
     if (remaining > 0) return;
-    const ended = endGame(state.board, state.scores);
-    setState({ ...state, scores: ended.scores, winner: ended.winner });
+    const ended = endGame(state.variant, state.board, state.scores);
+    setState({
+      ...state,
+      scores: ended.scores,
+      winner: ended.winner,
+      scoreLog: [...state.scoreLog, ...ended.bankEvents],
+    });
   }, [remaining, state]);
 
   function handleSquarePress(r: number, c: number) {
@@ -188,15 +194,25 @@ export default function GameScreen() {
 
       <View style={styles.boardWrap}>
         <View style={styles.scoreFrame}>
-          <View style={[styles.scorePill, styles.scoreBlack, styles.scoreTopLeft]}>
+          <Pressable
+            onPress={() => setExpandedScore('black')}
+            style={[styles.scorePill, styles.scoreBlack, styles.scoreTopLeft]}
+          >
             <Text style={styles.scoreLabel}>Black</Text>
-            <Text style={styles.scoreValue}>{formatScore(state.scores.black)}</Text>
-          </View>
+            <Text style={styles.scoreValue} numberOfLines={1}>
+              {formatScore(state.variant, state.scores.black)}
+            </Text>
+          </Pressable>
           <Board state={state} size={boardSize} onSquarePress={handleSquarePress} />
-          <View style={[styles.scorePill, styles.scoreRed, styles.scoreBottomRight]}>
+          <Pressable
+            onPress={() => setExpandedScore('red')}
+            style={[styles.scorePill, styles.scoreRed, styles.scoreBottomRight]}
+          >
             <Text style={styles.scoreLabel}>Red</Text>
-            <Text style={styles.scoreValue}>{formatScore(state.scores.red)}</Text>
-          </View>
+            <Text style={styles.scoreValue} numberOfLines={1}>
+              {formatScore(state.variant, state.scores.red)}
+            </Text>
+          </Pressable>
         </View>
       </View>
 
@@ -217,18 +233,88 @@ export default function GameScreen() {
                   : 'Black wins!'}
             </Text>
             <Text style={styles.winnerSub}>
-              Red {formatScore(state.scores.red)} · Black {formatScore(state.scores.black)}
+              Red {formatScore(state.variant, state.scores.red)} · Black{' '}
+              {formatScore(state.variant, state.scores.black)}
             </Text>
             <Text style={styles.winnerFootnote}>
-              Final score includes remaining chips.
+              Lower score wins. Remaining chips are banked.
             </Text>
+            <Pressable
+              onPress={() => setBreakdownOpen(true)}
+              style={styles.breakdownBtn}
+            >
+              <Text style={styles.breakdownBtnText}>
+                See how the score was computed →
+              </Text>
+            </Pressable>
             <Pressable onPress={restart} style={styles.button}>
               <Text style={styles.buttonText}>Play again</Text>
             </Pressable>
           </View>
         </View>
       ) : null}
+
+      <ScoreExpandSheet
+        visible={expandedScore !== null}
+        player={expandedScore}
+        variant={state.variant}
+        scores={state.scores}
+        onClose={() => setExpandedScore(null)}
+      />
+
+      <ScoreBreakdown
+        visible={breakdownOpen}
+        onClose={() => setBreakdownOpen(false)}
+        variant={state.variant}
+        scoreLog={state.scoreLog}
+        scores={state.scores}
+        winner={state.winner}
+      />
     </SafeAreaView>
+  );
+}
+
+// Tiny bottom sheet triggered by tapping a score pill. Shows the current
+// score in both scientific notation and full decimal form so the player can
+// see the exact number behind the compact display.
+function ScoreExpandSheet({
+  visible,
+  player,
+  variant,
+  scores,
+  onClose,
+}: {
+  visible: boolean;
+  player: Player | null;
+  variant: GameVariant;
+  scores: GameState['scores'];
+  onClose: () => void;
+}) {
+  const score = player ? scores[player] : 0;
+  const label = player === 'red' ? 'Red' : 'Black';
+  const accent = player === 'red' ? '#c0392b' : '#1e1e1e';
+  return (
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+    >
+      <Pressable style={styles.sheetBackdrop} onPress={onClose}>
+        <Pressable style={styles.sheetCard} onPress={(e) => e.stopPropagation()}>
+          <View style={[styles.sheetLabel, { backgroundColor: accent }]}>
+            <Text style={styles.sheetLabelText}>{label} score</Text>
+          </View>
+          <Text style={styles.sheetSci}>{toSciNotation(score)}</Text>
+          <Text style={styles.sheetDecimal}>{toFullDecimal(score)}</Text>
+          <Text style={styles.sheetHint}>
+            {variant === 'sci_notation'
+              ? 'Shown in the pill as scientific notation (3 sig figs).'
+              : 'Shown in the pill rounded to 2 decimals.'}
+          </Text>
+        </Pressable>
+      </Pressable>
+    </Modal>
   );
 }
 
@@ -354,4 +440,62 @@ const styles = StyleSheet.create({
   winnerTitle: { fontSize: 22, fontWeight: '700', color: '#111' },
   winnerSub: { fontSize: 14, color: '#555' },
   winnerFootnote: { fontSize: 11, color: '#888', fontStyle: 'italic' },
+  breakdownBtn: {
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    backgroundColor: '#eef1f5',
+  },
+  breakdownBtnText: {
+    color: '#2c3e50',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+
+  // Score pill tap-to-expand sheet
+  sheetBackdrop: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 24,
+  },
+  sheetCard: {
+    width: '100%',
+    maxWidth: 360,
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    gap: 10,
+    alignItems: 'stretch',
+  },
+  sheetLabel: {
+    alignSelf: 'flex-start',
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 6,
+  },
+  sheetLabelText: {
+    color: '#fff',
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  sheetSci: {
+    fontSize: 28,
+    fontWeight: '700',
+    color: '#111',
+    fontVariant: ['tabular-nums'],
+  },
+  sheetDecimal: {
+    fontSize: 14,
+    color: '#555',
+    fontVariant: ['tabular-nums'],
+  },
+  sheetHint: {
+    fontSize: 11,
+    color: '#888',
+    fontStyle: 'italic',
+    marginTop: 4,
+  },
 });
