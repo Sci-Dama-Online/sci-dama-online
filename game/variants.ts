@@ -3,6 +3,8 @@
 // label→value mapping used by the scoring engine. Variants without their own
 // chip set yet reuse Electro's as a placeholder.
 
+import type { Operation } from './types';
+
 export type GameVariant = 'electro' | 'sci_notation' | 'thi' | 'thermo';
 
 export type VariantPalette = {
@@ -21,6 +23,19 @@ export type VariantChips = {
   black: readonly ChipPlacement[];
 };
 
+// Operations printed on the light squares, one row per board row (8 total).
+// Each row's 4 entries correspond to that row's 4 light squares read left→right.
+export type BoardOperations = readonly [
+  readonly Operation[],
+  readonly Operation[],
+  readonly Operation[],
+  readonly Operation[],
+  readonly Operation[],
+  readonly Operation[],
+  readonly Operation[],
+  readonly Operation[],
+];
+
 export type VariantMeta = {
   id: GameVariant;
   name: string;
@@ -29,10 +44,42 @@ export type VariantMeta = {
   palette: VariantPalette;
   available: boolean;
   chips: VariantChips;
+  operations: BoardOperations;
   // Returns the chip's peso-equivalent numeric value given its board label.
   // Used by scoring math + end-of-game banking.
   valueOf: (label: string) => number;
 };
+
+// Default board operations shared by Electro, Sci-Notation, and Thermo.
+// Repeats every 4 rows (reading the 4 light squares of each row left→right):
+//   row 0 / 4 : × ÷ - +
+//   row 1 / 5 : ÷ × + -
+//   row 2 / 6 : - + × ÷
+//   row 3 / 7 : + - ÷ ×
+const DEFAULT_OPERATIONS: BoardOperations = [
+  ['×', '÷', '-', '+'],
+  ['÷', '×', '+', '-'],
+  ['-', '+', '×', '÷'],
+  ['+', '-', '÷', '×'],
+  ['×', '÷', '-', '+'],
+  ['÷', '×', '+', '-'],
+  ['-', '+', '×', '÷'],
+  ['+', '-', '÷', '×'],
+];
+
+// THI uses only + and - with a symmetric pattern mirrored across the middle:
+//   rows 0, 3, 4, 7 : + - - +
+//   rows 1, 2, 5, 6 : - + + -
+const THI_OPERATIONS: BoardOperations = [
+  ['+', '-', '-', '+'],
+  ['-', '+', '+', '-'],
+  ['-', '+', '+', '-'],
+  ['+', '-', '-', '+'],
+  ['+', '-', '-', '+'],
+  ['-', '+', '+', '-'],
+  ['-', '+', '+', '-'],
+  ['+', '-', '-', '+'],
+];
 
 // --- Electro chip set ------------------------------------------------------
 
@@ -114,6 +161,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     },
     available: true,
     chips: ELECTRO_CHIPS,
+    operations: DEFAULT_OPERATIONS,
     valueOf: electroValueOf,
   },
   sci_notation: {
@@ -131,11 +179,12 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     },
     available: true,
     chips: SCI_NOTATION_CHIPS,
+    operations: DEFAULT_OPERATIONS,
     valueOf: sciNotationValueOf,
   },
   thi: {
     id: 'thi',
-    name: 'Thi Sci-Dama',
+    name: 'THI Sci-Dama',
     tagline: 'Chemistry on a checkerboard.',
     subject: 'Chemistry / thermochemistry',
     palette: {
@@ -147,9 +196,11 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
       frame: '#4e2e1e',
     },
     available: true,
-    // Placeholder: same chip set + scoring as Electro until THI's own rules
-    // are defined. Swap `chips` and `valueOf` here when that happens.
+    // Chip set + scoring stay on Electro's for now; THI's own chip table will
+    // be swapped in when its rules are finalised. The board operations are
+    // already THI-specific: only + and - with the symmetric pattern.
     chips: ELECTRO_CHIPS,
+    operations: THI_OPERATIONS,
     valueOf: electroValueOf,
   },
   thermo: {
@@ -169,6 +220,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     // Placeholder: same chip set + scoring as Electro until Thermo's own rules
     // are defined.
     chips: ELECTRO_CHIPS,
+    operations: DEFAULT_OPERATIONS,
     valueOf: electroValueOf,
   },
 };

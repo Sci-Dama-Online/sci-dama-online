@@ -35,7 +35,7 @@ export function Board({ state, size, onSquarePress }: Props) {
                   cell={cell}
                   dark={dark}
                   size={squareSize}
-                  operation={getSquareOperation(r, c)}
+                  operation={getSquareOperation(state.variant, r, c)}
                   selected={selected}
                   isLegalTarget={isLegalTarget}
                   palette={palette}
