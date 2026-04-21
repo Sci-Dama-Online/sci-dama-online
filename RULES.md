@@ -82,13 +82,33 @@ Notice:
 
 The two score tiles next to the board show the running totals: **Black in the top-left, Red in the bottom-right.**
 
-## Winning the game
+## Ending the game
 
-The game ends as soon as a player has **no chips left** or **no legal moves on their turn.**
+The game ends when any one of these happens:
 
-When that happens, **the player with the LOWER total score wins.** If both scores are equal, the game is a tie.
+- One side has **no chips left.**
+- The player whose turn it is has **no legal moves.**
+- The **match timer hits 0:00.**
 
-The idea: every capture is a gamble. Landing on a `×` square while you're big and the enemy is big can really hurt your score. Sometimes the smarter play is to capture carefully, or not at all, so your score stays low.
+### Banking your remaining chips
+
+As soon as the game ends, every chip still on the board gets **converted to points and added to its owner's score.** The conversion uses the same ideas as capture scoring:
+
+- **P chip** → adds its face value (e.g. P8 = 8 points).
+- **kWh chip** → multiplied by 1.5 (e.g. 7kWh = 10.5 points).
+- **Kings (promoted chips)** → whatever they're worth gets an extra × 1.5 on top.
+- **A king on a kWh chip** → both multipliers stack: value × 1.5 (kWh) × 1.5 (king). So a king 11kWh is worth 11 × 1.5 × 1.5 = 24.75 points at the end.
+
+**These points count against you** — so idle chips that never got used are a penalty. The more of your own chips still sitting on the board when the game ends, the more they push your total up.
+
+### Who wins
+
+After remaining chips are banked, look at the final scores:
+
+- **The player with the LOWER total wins.** This is Sci Dama's core rule — the lowest score always wins.
+- Equal scores → tie.
+
+The winner banner shows the final total for each side — that number already includes the remaining-chip additions.
 
 ## Turn summary
 
@@ -98,4 +118,4 @@ The idea: every capture is a gamble. Landing on a `×` square while you're big a
 4. If you captured and can capture again with the same chip, the chip stays selected and you must continue.
 5. When your turn is done, it's the other player's turn. Watch the score tiles — they update after every capture.
 
-Have fun. Keep your score low.
+Aim low: capture cleverly, don't leave chips idle, and finish the match with as little score as possible.

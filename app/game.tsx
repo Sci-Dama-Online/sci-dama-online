@@ -6,10 +6,10 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Board } from '@/components/checkers/Board';
 import {
   applyMove,
+  endGame,
   getLegalMovesForPiece,
   initialState,
   posEquals,
-  winnerByScore,
 } from '@/game/rules';
 import type { GameState, Move } from '@/game/types';
 import {
@@ -81,7 +81,8 @@ export default function GameScreen() {
     if (state.winner) return;
     if (remaining === null) return;
     if (remaining > 0) return;
-    setState({ ...state, winner: winnerByScore(state.scores) });
+    const ended = endGame(state.board, state.scores);
+    setState({ ...state, scores: ended.scores, winner: ended.winner });
   }, [remaining, state]);
 
   function handleSquarePress(r: number, c: number) {
@@ -218,6 +219,9 @@ export default function GameScreen() {
             <Text style={styles.winnerSub}>
               Red {formatScore(state.scores.red)} · Black {formatScore(state.scores.black)}
             </Text>
+            <Text style={styles.winnerFootnote}>
+              Final score includes remaining chips.
+            </Text>
             <Pressable onPress={restart} style={styles.button}>
               <Text style={styles.buttonText}>Play again</Text>
             </Pressable>
@@ -349,4 +353,5 @@ const styles = StyleSheet.create({
   },
   winnerTitle: { fontSize: 22, fontWeight: '700', color: '#111' },
   winnerSub: { fontSize: 14, color: '#555' },
+  winnerFootnote: { fontSize: 11, color: '#888', fontStyle: 'italic' },
 });

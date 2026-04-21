@@ -374,10 +374,11 @@ export function applyMove(state: GameState, move: Move): GameState {
   const mustCapture = hasAnyCapture(board, turn);
 
   let winner: Player | 'tie' | null = null;
+  let finalScores = scores;
   if (countPieces(board, turn) === 0 || !hasAnyMove(board, turn)) {
-    if (scores.red < scores.black) winner = 'red';
-    else if (scores.black < scores.red) winner = 'black';
-    else winner = 'tie';
+    const ended = endGame(board, scores);
+    finalScores = ended.scores;
+    winner = ended.winner;
   }
 
   return {
@@ -388,17 +389,40 @@ export function applyMove(state: GameState, move: Move): GameState {
     mustCapture,
     forcedPiece,
     winner,
-    scores,
+    scores: finalScores,
     variant: state.variant,
     timeLimitSeconds: state.timeLimitSeconds,
     timerStartedAtMs: state.timerStartedAtMs,
   };
 }
 
-// Pure helper: decide the winner when the match clock runs out. Mirrors the
-// "lower score wins, tie on equal" rule used elsewhere.
-export function winnerByScore(scores: Scores): Player | 'tie' {
-  if (scores.red < scores.black) return 'red';
-  if (scores.black < scores.red) return 'black';
-  return 'tie';
+// Peso value a piece is worth when it's banked at match end:
+// kWh → × 1.5 (via labelToPeso), and a king (promoted) → another × 1.5.
+export function remainingChipValue(board: Board, player: Player): number {
+  let total = 0;
+  for (const row of board) {
+    for (const cell of row) {
+      if (!cell || cell.player !== player) continue;
+      let v = labelToPeso(cell.label);
+      if (cell.kind === 'king') v *= 1.5;
+      total += v;
+    }
+  }
+  return total;
+}
+
+// Ends the match: every player's remaining chips are banked into their score
+// (converted to peso, with × 1.5 for kings). Lower final score wins — chips
+// left on the board count against you. Equal scores → tie.
+export function endGame(
+  board: Board,
+  scores: Scores,
+): { scores: Scores; winner: Player | 'tie' } {
+  const red = scores.red + remainingChipValue(board, 'red');
+  const black = scores.black + remainingChipValue(board, 'black');
+  let winner: Player | 'tie';
+  if (red < black) winner = 'red';
+  else if (black < red) winner = 'black';
+  else winner = 'tie';
+  return { scores: { red, black }, winner };
 }
