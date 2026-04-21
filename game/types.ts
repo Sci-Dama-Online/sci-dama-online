@@ -34,4 +34,7 @@ export type GameState = {
   scores: Scores;
   variant: GameVariant;
   timeLimitSeconds: TimerOption;
+  // Unix ms when the match clock started (set on the first applied move).
+  // null until a move has actually been played.
+  timerStartedAtMs: number | null;
 };

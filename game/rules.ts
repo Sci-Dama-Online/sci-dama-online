@@ -96,6 +96,7 @@ export function initialState(
     scores: { red: 0, black: 0 },
     variant,
     timeLimitSeconds,
+    timerStartedAtMs: null,
   };
 }
 
@@ -390,5 +391,14 @@ export function applyMove(state: GameState, move: Move): GameState {
     scores,
     variant: state.variant,
     timeLimitSeconds: state.timeLimitSeconds,
+    timerStartedAtMs: state.timerStartedAtMs,
   };
+}
+
+// Pure helper: decide the winner when the match clock runs out. Mirrors the
+// "lower score wins, tie on equal" rule used elsewhere.
+export function winnerByScore(scores: Scores): Player | 'tie' {
+  if (scores.red < scores.black) return 'red';
+  if (scores.black < scores.red) return 'black';
+  return 'tie';
 }

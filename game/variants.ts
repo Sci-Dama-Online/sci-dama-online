@@ -52,7 +52,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
       accent: '#c0392b',
       frame: '#4e2e1e',
     },
-    available: false,
+    available: true,
   },
   thi: {
     id: 'thi',
@@ -67,7 +67,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
       accent: '#3b82f6',
       frame: '#4e2e1e',
     },
-    available: false,
+    available: true,
   },
   thermo: {
     id: 'thermo',
@@ -82,12 +82,12 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
       accent: '#f59e0b',
       frame: '#4e2e1e',
     },
-    available: false,
+    available: true,
   },
 };
 
 // Allowed timer values in seconds. null = no timer. 20 minutes is the official max.
-export const TIMER_OPTIONS = [null, 600, 900, 1200] as const;
+export const TIMER_OPTIONS = [null, 300, 600, 900, 1200] as const;
 export type TimerOption = (typeof TIMER_OPTIONS)[number];
 
 export function formatTimer(seconds: TimerOption): string {

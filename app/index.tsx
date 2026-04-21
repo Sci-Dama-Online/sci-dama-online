@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -8,6 +8,7 @@ import {
   getLegalMovesForPiece,
   initialState,
   posEquals,
+  winnerByScore,
 } from '@/game/rules';
 import type { GameState, Move } from '@/game/types';
 import {
@@ -22,6 +23,21 @@ import {
 function formatScore(n: number): string {
   const rounded = Math.round(n * 100) / 100;
   return rounded.toString();
+}
+
+function formatClock(seconds: number): string {
+  const s = Math.max(0, Math.floor(seconds));
+  const m = Math.floor(s / 60);
+  const ss = (s % 60).toString().padStart(2, '0');
+  return `${m}:${ss}`;
+}
+
+// Returns remaining seconds, or null if there's no timer or the clock hasn't started.
+function remainingSeconds(state: GameState, now: number): number | null {
+  if (state.timeLimitSeconds === null) return null;
+  if (state.timerStartedAtMs === null) return state.timeLimitSeconds;
+  const elapsed = (now - state.timerStartedAtMs) / 1000;
+  return Math.max(0, state.timeLimitSeconds - elapsed);
 }
 
 export default function App() {
@@ -156,13 +172,36 @@ function GameView({ state, setState, onExit }: GameViewProps) {
     [width, height],
   );
 
+  // `now` ticks every 500ms so the clock display refreshes. The match state
+  // itself doesn't change — we only recompute remaining seconds at render time.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  const remaining = remainingSeconds(state, now);
+
+  // Timeout: when the clock hits zero, end the match by score.
+  useEffect(() => {
+    if (state.winner) return;
+    if (remaining === null) return;
+    if (remaining > 0) return;
+    setState({ ...state, winner: winnerByScore(state.scores) });
+  }, [remaining, state, setState]);
+
   function handleSquarePress(r: number, c: number) {
     if (state.winner) return;
 
     if (state.selected) {
       const move = state.legalTargets.find((m) => posEquals(m.to, [r, c]));
       if (move) {
-        setState(applyMove(state, move));
+        const next = applyMove(state, move);
+        // First real move starts the match clock.
+        if (next.timerStartedAtMs === null) {
+          next.timerStartedAtMs = Date.now();
+        }
+        setState(next);
         return;
       }
     }
@@ -190,6 +229,8 @@ function GameView({ state, setState, onExit }: GameViewProps) {
   const turnLabel = state.turn === 'red' ? "Red's turn" : "Black's turn";
   const turnColor = state.turn === 'red' ? '#c0392b' : '#1e1e1e';
   const meta = VARIANTS[state.variant];
+  const clockRunning = state.timerStartedAtMs !== null && !state.winner;
+  const clockLowTime = remaining !== null && remaining <= 30 && clockRunning;
 
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
@@ -201,9 +242,41 @@ function GameView({ state, setState, onExit }: GameViewProps) {
           <View style={[styles.variantPill, { backgroundColor: meta.palette.accent }]}>
             <Text style={styles.variantPillText}>{meta.name}</Text>
           </View>
-          <View style={styles.timerPill}>
-            <Text style={styles.timerPillText}>{formatTimer(state.timeLimitSeconds)}</Text>
-          </View>
+          {state.timeLimitSeconds === null ? (
+            <View style={styles.timerPill}>
+              <Text style={styles.timerPillIcon}>∞</Text>
+              <Text style={styles.timerPillText}>No timer</Text>
+            </View>
+          ) : (
+            <View
+              style={[
+                styles.timerPill,
+                clockRunning && styles.timerPillLive,
+                clockLowTime && styles.timerPillLow,
+              ]}
+            >
+              <Text
+                style={[
+                  styles.timerPillIcon,
+                  clockRunning && styles.timerPillIconLight,
+                ]}
+              >
+                ⏱
+              </Text>
+              <Text
+                style={[
+                  styles.timerPillClock,
+                  !clockRunning && styles.timerPillClockIdle,
+                  clockLowTime && styles.timerPillClockLow,
+                ]}
+              >
+                {formatClock(remaining ?? state.timeLimitSeconds)}
+              </Text>
+              {!clockRunning ? (
+                <Text style={styles.timerPillHint}>· starts on 1st move</Text>
+              ) : null}
+            </View>
+          )}
         </View>
       </View>
 
@@ -297,15 +370,50 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   timerPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 10,
     backgroundColor: '#e5e5e5',
   },
+  timerPillLive: {
+    backgroundColor: '#111',
+  },
+  timerPillLow: {
+    backgroundColor: '#7a1c14',
+  },
+  timerPillIcon: {
+    color: '#333',
+    fontSize: 12,
+  },
+  timerPillIconLight: {
+    color: '#fff',
+  },
   timerPillText: {
     color: '#333',
     fontSize: 11,
     fontWeight: '600',
+  },
+  timerPillClock: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+    fontVariant: ['tabular-nums'],
+    letterSpacing: 0.5,
+  },
+  timerPillClockIdle: {
+    color: '#333',
+  },
+  timerPillClockLow: {
+    color: '#ffd2c9',
+  },
+  timerPillHint: {
+    color: '#666',
+    fontSize: 10,
+    fontStyle: 'italic',
+    marginLeft: 2,
   },
   banner: {
     paddingVertical: 12,
