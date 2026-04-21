@@ -53,7 +53,8 @@ Black is the exact mirror on the opposite side of the board.
 - Kings move **any distance diagonally** along an empty path — not just one square.
 - Kings capture by flying over an enemy chip (with a clear path to it) and landing on any empty square past it.
 - **A king cannot dodge a capture.** If a king jumps and has multiple possible landing squares past the enemy, and at least one of those landings allows another capture, the king must pick a landing that continues the chain.
-- If a regular chip becomes a king during a jump (by landing on the back row mid-chain), the chain ends there — the newly-promoted king does not continue capturing that turn.
+- **The chain takes priority over promotion.** If a regular chip lands on the opposite back row during a capture and another capture is still available from that square, the chip must keep chaining — still as a regular chip. Promotion only triggers if the chain **ends** with the piece resting on the back row.
+- **Passing through doesn't promote.** A chip that touches the back row mid-chain but finishes somewhere else stays a regular chip, and the captures it took in that chain do **not** get the king × 1.5 bonus.
 
 ## Scoring
 

@@ -339,19 +339,28 @@ export function applyMove(state: GameState, move: Move): GameState {
   for (const [cr, cc] of move.captured) {
     board[cr][cc] = null;
   }
-  const landed: Piece = move.promoted ? { ...piece, kind: 'king' } : piece;
-  board[tr][tc] = landed;
+  // Tentatively land the piece unchanged. Promotion is decided AFTER we know
+  // whether the capture chain continues — a man that can still capture must
+  // keep chaining as a man, even if it just touched the back row.
+  board[tr][tc] = piece;
 
   const wasCapture = move.captured.length > 0;
   let continueChain = false;
   let nextCaptures: Move[] = [];
-  if (wasCapture && !move.promoted) {
+  if (wasCapture) {
     nextCaptures = filterKingChainContinuers(
       board,
       [tr, tc],
       getCaptures(board, tr, tc),
     );
     if (nextCaptures.length > 0) continueChain = true;
+  }
+
+  // Promote only when the chain ends with the man actually resting on its
+  // back row. Passing through the back row mid-chain does NOT promote and
+  // the chain's captures stay at man rates (no king × 1.5 bonus).
+  if (!continueChain && piece.kind === 'man' && willPromote(piece, tr)) {
+    board[tr][tc] = { ...piece, kind: 'king' };
   }
 
   let turn: Player;
