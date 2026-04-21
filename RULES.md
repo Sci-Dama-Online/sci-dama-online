@@ -1,4 +1,4 @@
-# How to play — Electro Sci Dama
+# How to play — Electro Sci-Dama
 
 A two-player game on an 8×8 board. Players take turns moving their chips diagonally and capturing the other player's chips. At the end of the game, **the player with the lower score wins.**
 
@@ -131,7 +131,7 @@ As soon as the game ends, every chip still on the board gets **converted to poin
 
 After remaining chips are banked, look at the final scores:
 
-- **The player with the LOWER total wins.** This is Sci Dama's core rule — the lowest score always wins.
+- **The player with the LOWER total wins.** This is Sci-Dama's core rule — the lowest score always wins.
 - Equal scores → tie.
 
 The winner banner shows the final total for each side — that number already includes the remaining-chip additions. For a full accounting, tap **"See how the score was computed →"** on the winner card to open a breakdown of every capture, every banked chip, and the arithmetic that produced the final totals.

@@ -1,4 +1,4 @@
-// Metadata for each Sci Dama variant. Board, gameplay, and scoring math are
+// Metadata for each Sci-Dama variant. Board, gameplay, and scoring math are
 // shared across variants; each variant supplies its own chip layout and the
 // label→value mapping used by the scoring engine. Variants without their own
 // chip set yet reuse Electro's as a placeholder.
@@ -101,7 +101,7 @@ const SCI_NOTATION_CHIPS: VariantChips = {
 export const VARIANTS: Record<GameVariant, VariantMeta> = {
   electro: {
     id: 'electro',
-    name: 'Electro Sci Dama',
+    name: 'Electro Sci-Dama',
     tagline: 'Volts, currents, kilowatt-hours.',
     subject: 'Electric power consumption',
     palette: {
@@ -135,7 +135,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
   },
   thi: {
     id: 'thi',
-    name: 'THI Sci Dama',
+    name: 'Thi Sci-Dama',
     tagline: 'Chemistry on a checkerboard.',
     subject: 'Chemistry / thermochemistry',
     palette: {
@@ -154,7 +154,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
   },
   thermo: {
     id: 'thermo',
-    name: 'Thermo Sci Dama',
+    name: 'Thermo Sci-Dama',
     tagline: 'Temperature scales in motion.',
     subject: 'Thermodynamics',
     palette: {
