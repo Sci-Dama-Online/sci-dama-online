@@ -10,8 +10,13 @@ export default function RootLayout() {
 
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="index" options={{ title: 'Dama' }} />
+      <Stack screenOptions={{ headerShown: false }}>
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen
+          name="game-setup"
+          options={{ presentation: 'modal', title: 'New Game' }}
+        />
+        <Stack.Screen name="game" options={{ title: 'Match' }} />
       </Stack>
       <StatusBar style="auto" />
     </ThemeProvider>

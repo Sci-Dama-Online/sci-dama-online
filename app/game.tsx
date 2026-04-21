@@ -1,5 +1,6 @@
+import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { Board } from '@/components/checkers/Board';
@@ -12,12 +13,10 @@ import {
 } from '@/game/rules';
 import type { GameState, Move } from '@/game/types';
 import {
-  formatTimer,
   TIMER_OPTIONS,
   VARIANTS,
   type GameVariant,
   type TimerOption,
-  type VariantMeta,
 } from '@/game/variants';
 
 function formatScore(n: number): string {
@@ -32,7 +31,6 @@ function formatClock(seconds: number): string {
   return `${m}:${ss}`;
 }
 
-// Returns remaining seconds, or null if there's no timer or the clock hasn't started.
 function remainingSeconds(state: GameState, now: number): number | null {
   if (state.timeLimitSeconds === null) return null;
   if (state.timerStartedAtMs === null) return state.timeLimitSeconds;
@@ -40,140 +38,37 @@ function remainingSeconds(state: GameState, now: number): number | null {
   return Math.max(0, state.timeLimitSeconds - elapsed);
 }
 
-export default function App() {
-  const [gameState, setGameState] = useState<GameState | null>(null);
-
-  if (!gameState) {
-    return (
-      <PreGame
-        onStart={(variant, timer) => setGameState(initialState(variant, timer))}
-      />
-    );
-  }
-
-  return (
-    <GameView
-      state={gameState}
-      setState={setGameState}
-      onExit={() => setGameState(null)}
-    />
-  );
+function parseVariant(value: string | string[] | undefined): GameVariant {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (v && v in VARIANTS) return v as GameVariant;
+  return 'electro';
 }
 
-// --- Pre-game: pick variant + timer ----------------------------------------
-
-type PreGameProps = {
-  onStart: (variant: GameVariant, timer: TimerOption) => void;
-};
-
-function PreGame({ onStart }: PreGameProps) {
-  const [variant, setVariant] = useState<GameVariant>('electro');
-  const [timer, setTimer] = useState<TimerOption>(null);
-  const variants = Object.values(VARIANTS);
-
-  return (
-    <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
-      <ScrollView contentContainerStyle={preStyles.scroll}>
-        <View style={preStyles.header}>
-          <Text style={preStyles.title}>Sci Dama</Text>
-          <Text style={preStyles.subtitle}>Pick a variant and a clock.</Text>
-        </View>
-
-        <Text style={preStyles.sectionLabel}>VARIANT</Text>
-        <View style={preStyles.grid}>
-          {variants.map((v) => (
-            <VariantCard
-              key={v.id}
-              meta={v}
-              selected={variant === v.id}
-              onPress={() => v.available && setVariant(v.id)}
-            />
-          ))}
-        </View>
-
-        <Text style={preStyles.sectionLabel}>TIMER</Text>
-        <View style={preStyles.timerRow}>
-          {TIMER_OPTIONS.map((opt) => {
-            const active = timer === opt;
-            return (
-              <Pressable
-                key={String(opt)}
-                onPress={() => setTimer(opt)}
-                style={[preStyles.timerChip, active && preStyles.timerChipActive]}
-              >
-                <Text style={[preStyles.timerText, active && preStyles.timerTextActive]}>
-                  {formatTimer(opt)}
-                </Text>
-              </Pressable>
-            );
-          })}
-        </View>
-        <Text style={preStyles.hint}>Official matches are capped at 20 minutes.</Text>
-
-        <Pressable
-          onPress={() => onStart(variant, timer)}
-          style={[preStyles.startBtn, { backgroundColor: VARIANTS[variant].palette.accent }]}
-        >
-          <Text style={preStyles.startText}>Start Game</Text>
-        </Pressable>
-      </ScrollView>
-    </SafeAreaView>
-  );
+function parseTimer(value: string | string[] | undefined): TimerOption {
+  const v = Array.isArray(value) ? value[0] : value;
+  if (v === undefined || v === 'none') return null;
+  const n = Number(v);
+  return (TIMER_OPTIONS as readonly (number | null)[]).includes(n)
+    ? (n as TimerOption)
+    : null;
 }
 
-function VariantCard({
-  meta,
-  selected,
-  onPress,
-}: {
-  meta: VariantMeta;
-  selected: boolean;
-  onPress: () => void;
-}) {
-  const disabled = !meta.available;
-  return (
-    <Pressable
-      onPress={onPress}
-      disabled={disabled}
-      style={[
-        preStyles.card,
-        { borderColor: selected ? meta.palette.accent : '#2a2a2a' },
-        disabled && preStyles.cardDisabled,
-      ]}
-    >
-      <View style={[preStyles.swatch, { backgroundColor: meta.palette.boardDarkFrom }]}>
-        <View style={[preStyles.swatchTile, { backgroundColor: meta.palette.boardLightTo }]} />
-      </View>
-      <Text style={preStyles.cardName}>{meta.name}</Text>
-      <Text style={preStyles.cardTag} numberOfLines={2}>
-        {meta.tagline}
-      </Text>
-      {disabled ? (
-        <View style={preStyles.soonBadge}>
-          <Text style={preStyles.soonText}>COMING SOON</Text>
-        </View>
-      ) : null}
-    </Pressable>
+export default function GameScreen() {
+  const router = useRouter();
+  const params = useLocalSearchParams<{ variant?: string; timer?: string }>();
+  const initialVariant = parseVariant(params.variant);
+  const initialTimer = parseTimer(params.timer);
+
+  const [state, setState] = useState<GameState>(() =>
+    initialState(initialVariant, initialTimer),
   );
-}
 
-// --- Game view (the playable board) ----------------------------------------
-
-type GameViewProps = {
-  state: GameState;
-  setState: (state: GameState) => void;
-  onExit: () => void;
-};
-
-function GameView({ state, setState, onExit }: GameViewProps) {
   const { width, height } = useWindowDimensions();
   const boardSize = useMemo(
     () => Math.floor(Math.min(width, height) * 0.88),
     [width, height],
   );
 
-  // `now` ticks every 500ms so the clock display refreshes. The match state
-  // itself doesn't change — we only recompute remaining seconds at render time.
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 500);
@@ -182,13 +77,12 @@ function GameView({ state, setState, onExit }: GameViewProps) {
 
   const remaining = remainingSeconds(state, now);
 
-  // Timeout: when the clock hits zero, end the match by score.
   useEffect(() => {
     if (state.winner) return;
     if (remaining === null) return;
     if (remaining > 0) return;
     setState({ ...state, winner: winnerByScore(state.scores) });
-  }, [remaining, state, setState]);
+  }, [remaining, state]);
 
   function handleSquarePress(r: number, c: number) {
     if (state.winner) return;
@@ -197,7 +91,6 @@ function GameView({ state, setState, onExit }: GameViewProps) {
       const move = state.legalTargets.find((m) => posEquals(m.to, [r, c]));
       if (move) {
         const next = applyMove(state, move);
-        // First real move starts the match clock.
         if (next.timerStartedAtMs === null) {
           next.timerStartedAtMs = Date.now();
         }
@@ -226,6 +119,10 @@ function GameView({ state, setState, onExit }: GameViewProps) {
     setState(initialState(state.variant, state.timeLimitSeconds));
   }
 
+  function exit() {
+    router.replace('/(tabs)/index');
+  }
+
   const turnLabel = state.turn === 'red' ? "Red's turn" : "Black's turn";
   const turnColor = state.turn === 'red' ? '#c0392b' : '#1e1e1e';
   const meta = VARIANTS[state.variant];
@@ -235,7 +132,7 @@ function GameView({ state, setState, onExit }: GameViewProps) {
   return (
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.topBar}>
-        <Pressable onPress={onExit} style={styles.exitBtn}>
+        <Pressable onPress={exit} style={styles.exitBtn}>
           <Text style={styles.exitText}>← Change game</Text>
         </Pressable>
         <View style={styles.badges}>
@@ -331,13 +228,8 @@ function GameView({ state, setState, onExit }: GameViewProps) {
   );
 }
 
-// --- Styles ---------------------------------------------------------------
-
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    backgroundColor: '#fafafa',
-  },
+  root: { flex: 1, backgroundColor: '#fafafa' },
   topBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -345,30 +237,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 8,
   },
-  exitBtn: {
-    paddingVertical: 6,
-    paddingHorizontal: 8,
-  },
-  exitText: {
-    color: '#333',
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  badges: {
-    flexDirection: 'row',
-    gap: 6,
-    alignItems: 'center',
-  },
+  exitBtn: { paddingVertical: 6, paddingHorizontal: 8 },
+  exitText: { color: '#333', fontSize: 14, fontWeight: '500' },
+  badges: { flexDirection: 'row', gap: 6, alignItems: 'center' },
   variantPill: {
     paddingVertical: 4,
     paddingHorizontal: 10,
     borderRadius: 10,
   },
-  variantPillText: {
-    color: '#fff',
-    fontSize: 11,
-    fontWeight: '700',
-  },
+  variantPillText: { color: '#fff', fontSize: 11, fontWeight: '700' },
   timerPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -378,24 +255,11 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     backgroundColor: '#e5e5e5',
   },
-  timerPillLive: {
-    backgroundColor: '#111',
-  },
-  timerPillLow: {
-    backgroundColor: '#7a1c14',
-  },
-  timerPillIcon: {
-    color: '#333',
-    fontSize: 12,
-  },
-  timerPillIconLight: {
-    color: '#fff',
-  },
-  timerPillText: {
-    color: '#333',
-    fontSize: 11,
-    fontWeight: '600',
-  },
+  timerPillLive: { backgroundColor: '#111' },
+  timerPillLow: { backgroundColor: '#7a1c14' },
+  timerPillIcon: { color: '#333', fontSize: 12 },
+  timerPillIconLight: { color: '#fff' },
+  timerPillText: { color: '#333', fontSize: 11, fontWeight: '600' },
   timerPillClock: {
     color: '#fff',
     fontSize: 13,
@@ -403,12 +267,8 @@ const styles = StyleSheet.create({
     fontVariant: ['tabular-nums'],
     letterSpacing: 0.5,
   },
-  timerPillClockIdle: {
-    color: '#333',
-  },
-  timerPillClockLow: {
-    color: '#ffd2c9',
-  },
+  timerPillClockIdle: { color: '#333' },
+  timerPillClockLow: { color: '#ffd2c9' },
   timerPillHint: {
     color: '#666',
     fontSize: 10,
@@ -429,26 +289,15 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#333',
   },
-  bannerText: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: '#111',
-  },
+  bannerText: { fontSize: 18, fontWeight: '600', color: '#111' },
   hint: {
     marginLeft: 8,
     fontSize: 12,
     color: '#555',
     fontStyle: 'italic',
   },
-  boardWrap: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  scoreFrame: {
-    paddingVertical: 36,
-    position: 'relative',
-  },
+  boardWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  scoreFrame: { paddingVertical: 36, position: 'relative' },
   scorePill: {
     position: 'absolute',
     paddingVertical: 6,
@@ -476,21 +325,14 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     fontVariant: ['tabular-nums'],
   },
-  footer: {
-    paddingVertical: 16,
-    alignItems: 'center',
-  },
+  footer: { paddingVertical: 16, alignItems: 'center' },
   button: {
     paddingVertical: 10,
     paddingHorizontal: 24,
     backgroundColor: '#2c3e50',
     borderRadius: 6,
   },
-  buttonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '600',
-  },
+  buttonText: { color: '#fff', fontSize: 16, fontWeight: '600' },
   winnerOverlay: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
@@ -505,134 +347,6 @@ const styles = StyleSheet.create({
     gap: 16,
     minWidth: 220,
   },
-  winnerTitle: {
-    fontSize: 22,
-    fontWeight: '700',
-    color: '#111',
-  },
-  winnerSub: {
-    fontSize: 14,
-    color: '#555',
-  },
-});
-
-const preStyles = StyleSheet.create({
-  scroll: {
-    padding: 20,
-    gap: 12,
-  },
-  header: {
-    marginTop: 8,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 30,
-    fontWeight: '700',
-    color: '#111',
-  },
-  subtitle: {
-    fontSize: 14,
-    color: '#666',
-    marginTop: 4,
-  },
-  sectionLabel: {
-    marginTop: 12,
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    color: '#777',
-  },
-  grid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
-  card: {
-    width: '47.5%',
-    backgroundColor: '#fff',
-    padding: 12,
-    borderRadius: 14,
-    borderWidth: 2,
-    gap: 8,
-  },
-  cardDisabled: {
-    opacity: 0.55,
-  },
-  swatch: {
-    height: 56,
-    borderRadius: 8,
-    padding: 6,
-    justifyContent: 'flex-end',
-    alignItems: 'flex-end',
-  },
-  swatchTile: {
-    width: 16,
-    height: 16,
-    borderRadius: 3,
-  },
-  cardName: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#111',
-  },
-  cardTag: {
-    fontSize: 11,
-    color: '#666',
-    lineHeight: 14,
-  },
-  soonBadge: {
-    alignSelf: 'flex-start',
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-    borderRadius: 6,
-    backgroundColor: '#eee',
-  },
-  soonText: {
-    fontSize: 9,
-    fontWeight: '700',
-    color: '#666',
-    letterSpacing: 0.6,
-  },
-  timerRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  timerChip: {
-    paddingVertical: 10,
-    paddingHorizontal: 16,
-    borderRadius: 10,
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d9d9d9',
-  },
-  timerChipActive: {
-    backgroundColor: '#2c3e50',
-    borderColor: '#2c3e50',
-  },
-  timerText: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#444',
-  },
-  timerTextActive: {
-    color: '#fff',
-  },
-  hint: {
-    fontSize: 11,
-    color: '#888',
-    fontStyle: 'italic',
-  },
-  startBtn: {
-    marginTop: 16,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  startText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
-    letterSpacing: 0.5,
-  },
+  winnerTitle: { fontSize: 22, fontWeight: '700', color: '#111' },
+  winnerSub: { fontSize: 14, color: '#555' },
 });
