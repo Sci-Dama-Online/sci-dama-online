@@ -68,14 +68,14 @@ Black is the exact mirror on the opposite side of the board.
 - **Captures are mandatory.** If you can capture this turn, you must. You're not allowed to make a plain move instead.
 - **Multi-jumps are mandatory too.** If your chip lands after a capture and can immediately capture another piece, it has to keep going. A single turn can chain several captures in a row.
 
-## Kings (dama)
+## Dama (promoted chips)
 
-- When a regular chip reaches the opposite back row, it becomes a **king** (shown with a gold border on the chip).
-- Kings move **any distance diagonally** along an empty path — not just one square.
-- Kings capture by flying over an enemy chip (with a clear path to it) and landing on any empty square past it.
-- **A king cannot dodge a capture.** If a king jumps and has multiple possible landing squares past the enemy, and at least one of those landings allows another capture, the king must pick a landing that continues the chain.
+- When a regular chip reaches the opposite back row, it becomes a **dama** (shown with a gold border on the chip).
+- A dama moves **any distance diagonally** along an empty path — not just one square.
+- A dama captures by flying over an enemy chip (with a clear path to it) and landing on any empty square past it.
+- **A dama cannot dodge a capture.** If a dama jumps and has multiple possible landing squares past the enemy, and at least one of those landings allows another capture, the dama must pick a landing that continues the chain.
 - **The chain takes priority over promotion.** If a regular chip lands on the opposite back row during a capture and another capture is still available from that square, the chip must keep chaining — still as a regular chip. Promotion only triggers if the chain **ends** with the piece resting on the back row.
-- **Passing through doesn't promote.** A chip that touches the back row mid-chain but finishes somewhere else stays a regular chip, and the captures it took in that chain do **not** get the king × 1.5 bonus.
+- **Passing through doesn't promote.** A chip that touches the back row mid-chain but finishes somewhere else stays a regular chip, and the captures it took in that chain do **not** get any dama bonus.
 
 ## Scoring
 
@@ -83,24 +83,28 @@ Every time you capture a chip you add (or subtract!) points from your score. Her
 
 1. Convert both chips' values to pesos:
    - P chips keep their number.
-   - kWh chips multiply by 1.5.
+   - kWh chips multiply by 1.5 (this conversion never changes — it's purely unit conversion).
 2. Look at the **operation symbol on the square where your chip landed** (one of +, −, ×, ÷).
 3. Do the math with your chip's value and the captured chip's value:
    `your_value  OPERATION  captured_value`
-4. If **your** capturing chip is a king, multiply the result by 1.5.
+4. Apply the **dama bonus** to the result:
+   - Ordinary takes ordinary → × 1 (no bonus).
+   - Dama takes an ordinary chip → **× 2**.
+   - Ordinary chip takes a dama → **× 2**.
+   - Dama takes another dama → **× 4**.
 
 That final number gets added to your score. Your opponent's score is **not** directly affected when their piece is taken — their loss comes from not capturing as much as you do.
 
 ### Worked examples
 
-- Man **P10** captures P2, lands on **+** → 10 + 2 = **12 points**
-- Man **P2** captures P10, lands on **−** → 2 − 10 = **−8 points** (yes, negative!)
-- King **P10** captures 7KWH, lands on **+** → (10 + (7×1.5)) × 1.5 = (10 + 10.5) × 1.5 = **30.75 points**
-- King **7KWH** captures 5KWH, lands on **×** → (10.5 × 7.5) × 1.5 = **118.125 points**
+- Ordinary **P10** captures P2, lands on **+** → (10 + 2) × 1 = **12 points**
+- Ordinary **P2** captures P10, lands on **−** → (2 − 10) × 1 = **−8 points** (yes, negative!)
+- Dama **P10** captures 7KWH, lands on **+** → (10 + (7 × 1.5)) × 2 = (10 + 10.5) × 2 = **41 points**
+- Dama **P8** captures Dama P6, lands on **×** → (8 × 6) × 4 = **192 points**
 
 Notice:
 - A bad landing (like getting a minus when you're smaller than the piece you took) can **drop your score below zero**.
-- A king capturing a kWh chip effectively stacks two ×1.5 multipliers (one from the kWh conversion, one from the king bonus).
+- The kWh × 1.5 conversion is separate from the dama bonus — both can apply to the same capture without interfering.
 
 The two score tiles next to the board show the running totals: **Black in the top-left, Red in the bottom-right.**
 
@@ -118,10 +122,10 @@ As soon as the game ends, every chip still on the board gets **converted to poin
 
 - **P chip** → adds its face value (e.g. P8 = 8 points).
 - **kWh chip** → multiplied by 1.5 (e.g. 7kWh = 10.5 points).
-- **Kings (promoted chips)** → whatever they're worth gets an extra × 1.5 on top.
-- **A king on a kWh chip** → both multipliers stack: value × 1.5 (kWh) × 1.5 (king). So a king 11kWh is worth 11 × 1.5 × 1.5 = 24.75 points at the end.
+- **Dama (promoted chip)** → whatever it's worth gets an extra **× 2** on top.
+- **A dama on a kWh chip** → both multipliers stack: value × 1.5 (kWh) × 2 (dama). So a dama 11kWh is worth 11 × 1.5 × 2 = 33 points at the end.
 
-**These points count against you** — so idle chips that never got used are a penalty. The more of your own chips still sitting on the board when the game ends, the more they push your total up.
+**These points count against you** — so idle chips that never got used are a penalty. The more of your own chips still sitting on the board when the game ends, the more they push your total up — and a dama left standing doubles that pain.
 
 ### Who wins
 

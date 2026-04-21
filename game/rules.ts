@@ -267,18 +267,18 @@ function simulateMove(board: Board, move: Move): Board {
   return b;
 }
 
-// When a king captures, its flying nature gives it multiple possible landing
+// When a dama captures, its flying nature gives it multiple possible landing
 // squares past the enemy. If some landings enable another capture and others
-// don't, the king must pick a chain-continuing landing — it can't "dodge" a
+// don't, the dama must pick a chain-continuing landing — it can't "dodge" a
 // takable piece by stopping short or skipping past.
-function filterKingChainContinuers(
+function filterDamaChainContinuers(
   board: Board,
   from: Pos,
   captures: Move[],
 ): Move[] {
   if (captures.length === 0) return captures;
   const piece = board[from[0]][from[1]];
-  if (!piece || piece.kind !== 'king') return captures;
+  if (!piece || piece.kind !== 'dama') return captures;
   const continuers = captures.filter((m) => {
     const next = simulateMove(board, m);
     return getCaptures(next, m.to[0], m.to[1]).length > 0;
@@ -292,7 +292,7 @@ export function getLegalMovesForPiece(
   c: number,
   mustCapture: boolean,
 ): Move[] {
-  const captures = filterKingChainContinuers(
+  const captures = filterDamaChainContinuers(
     board,
     [r, c],
     getCaptures(board, r, c),
@@ -342,6 +342,8 @@ function other(player: Player): Player {
 
 // Collects the bankable chip contributions for one player — used both for
 // `remainingChipValue` and for building the end-of-match BankEvent.
+// A remaining dama is worth × 2 of its peso value (kWh→peso conversion via
+// `valueOf` is already × 1.5 and is independent of the dama bonus).
 function collectRemainingChips(
   variant: GameVariant,
   board: Board,
@@ -352,9 +354,9 @@ function collectRemainingChips(
     for (const cell of row) {
       if (!cell || cell.player !== player) continue;
       const baseValue = valueOf(variant, cell.label);
-      const isKing = cell.kind === 'king';
-      const contribution = isKing ? baseValue * 1.5 : baseValue;
-      chips.push({ label: cell.label, isKing, baseValue, contribution });
+      const isDama = cell.kind === 'dama';
+      const contribution = isDama ? baseValue * 2 : baseValue;
+      chips.push({ label: cell.label, isDama, baseValue, contribution });
     }
   }
   return chips;
@@ -452,12 +454,16 @@ export function applyMove(state: GameState, move: Move): GameState {
         player: piece.player,
         taker: {
           label: piece.label,
-          isKing: piece.kind === 'king',
+          isDama: piece.kind === 'dama',
           value: math.takerValue,
         },
-        taken: { label: taken.label, value: math.takenValue },
+        taken: {
+          label: taken.label,
+          isDama: taken.kind === 'dama',
+          value: math.takenValue,
+        },
         operation: op,
-        kingBonusApplied: math.kingBonusApplied,
+        captureMultiplier: math.captureMultiplier,
         delta: math.delta,
         playerTotalAfter: scores[piece.player],
       };
@@ -477,7 +483,7 @@ export function applyMove(state: GameState, move: Move): GameState {
   let continueChain = false;
   let nextCaptures: Move[] = [];
   if (wasCapture) {
-    nextCaptures = filterKingChainContinuers(
+    nextCaptures = filterDamaChainContinuers(
       board,
       [tr, tc],
       getCaptures(board, tr, tc),
@@ -487,9 +493,9 @@ export function applyMove(state: GameState, move: Move): GameState {
 
   // Promote only when the chain ends with the man actually resting on its
   // back row. Passing through the back row mid-chain does NOT promote and
-  // the chain's captures stay at man rates (no king × 1.5 bonus).
+  // the chain's captures stay at ordinary-chip rates (no dama bonus).
   if (!continueChain && piece.kind === 'man' && willPromote(piece, tr)) {
-    board[tr][tc] = { ...piece, kind: 'king' };
+    board[tr][tc] = { ...piece, kind: 'dama' };
   }
 
   let turn: Player;

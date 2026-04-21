@@ -10,13 +10,13 @@ type Props = {
 export function Piece({ piece, size }: Props) {
   const diameter = size * 0.88;
   const backgroundColor = piece.player === 'red' ? '#c0392b' : '#1e1e1e';
-  const isKing = piece.kind === 'king';
-  const borderColor = isKing
+  const isDama = piece.kind === 'dama';
+  const borderColor = isDama
     ? '#f1c40f'
     : piece.player === 'red'
       ? '#7d1f14'
       : '#000';
-  const borderWidth = isKing ? 3 : 2;
+  const borderWidth = isDama ? 3 : 2;
 
   const len = piece.label.length;
   const fontSize = len >= 5 ? diameter * 0.22 : len === 4 ? diameter * 0.26 : diameter * 0.32;

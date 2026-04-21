@@ -82,7 +82,7 @@ export function ScoreBreakdown({
 
           <View style={styles.legend}>
             <Text style={styles.legendText}>
-              {`Lower final score wins. Remaining chips at the end of the match are banked into the owner's total — so idle chips count against you, and a king (× 1.5) left on the board costs even more.`}
+              {`Lower final score wins. Remaining chips at the end of the match are banked into the owner's total — so idle chips count against you, and a dama (× 2) left on the board costs even more.`}
             </Text>
           </View>
         </ScrollView>
@@ -183,16 +183,24 @@ function CaptureRow({
   event: CaptureEvent;
   variant: GameVariant;
 }) {
+  // × 2 or × 4 bonus annotation for the math line.
+  let bonusHint: string | null = null;
+  if (event.captureMultiplier === 4) bonusHint = 'dama × dama';
+  else if (event.captureMultiplier === 2) {
+    bonusHint = event.taker.isDama ? 'dama takes' : 'takes dama';
+  }
+
   return (
     <View style={styles.row}>
       <View style={styles.rowHeader}>
         <Text style={styles.moveNum}>#{event.moveNumber}</Text>
         <Text style={styles.rowHead}>
-          {event.taker.isKing ? 'King ' : ''}
+          {event.taker.isDama ? 'Dama ' : ''}
           {event.taker.label}
           {'  '}
           <Text style={styles.op}>{event.operation}</Text>
           {'  '}
+          {event.taken.isDama ? 'Dama ' : ''}
           {event.taken.label}
         </Text>
       </View>
@@ -202,10 +210,11 @@ function CaptureRow({
         <Text style={styles.op}>{event.operation}</Text>
         {'  '}
         {formatChipValue(variant, event.taken.value)}
-        {event.kingBonusApplied ? (
+        {event.captureMultiplier !== 1 ? (
           <Text>
             {'  '}
-            <Text style={styles.op}>×</Text> 1.5 <Text style={styles.hint}>(king)</Text>
+            <Text style={styles.op}>×</Text> {event.captureMultiplier}{' '}
+            <Text style={styles.hint}>({bonusHint})</Text>
           </Text>
         ) : null}
         {'  '}
@@ -227,15 +236,15 @@ function BankChipRow({
   return (
     <View style={styles.row}>
       <Text style={styles.rowHead}>
-        {chip.isKing ? 'King ' : ''}
+        {chip.isDama ? 'Dama ' : ''}
         {chip.label}
       </Text>
       <Text style={styles.rowMath}>
         {formatChipValue(variant, chip.baseValue)}
-        {chip.isKing ? (
+        {chip.isDama ? (
           <Text>
             {'  '}
-            <Text style={styles.op}>×</Text> 1.5 <Text style={styles.hint}>(king)</Text>
+            <Text style={styles.op}>×</Text> 2 <Text style={styles.hint}>(dama)</Text>
           </Text>
         ) : null}
         {'  '}
