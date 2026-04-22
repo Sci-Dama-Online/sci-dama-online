@@ -7,10 +7,14 @@ import type { Database } from '@/types/database';
 const url = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const anonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
+// Warn instead of throw: a missing env var used to crash the app during
+// bundle evaluation (EAS production builds with no baked-in env would show
+// the icon, then immediately close). The app now boots; Supabase-backed
+// features just fail individually with a clear message in logs.
 if (!url || !anonKey) {
-  throw new Error(
-    'Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY. ' +
-      'Copy .env.example to .env and fill in the values.',
+  console.warn(
+    '[supabase] Missing EXPO_PUBLIC_SUPABASE_URL or EXPO_PUBLIC_SUPABASE_ANON_KEY. ' +
+      'Supabase-backed features will not work. Check eas.json (for builds) or .env (for dev).',
   );
 }
 
@@ -30,11 +34,17 @@ const noopStorage = {
   },
 };
 
-export const supabase = createClient<Database>(url, anonKey, {
-  auth: {
-    storage: isBrowser ? AsyncStorage : noopStorage,
-    autoRefreshToken: isBrowser,
-    persistSession: isBrowser,
-    detectSessionInUrl: false,
+// Fall back to placeholder strings so client construction never throws. Any
+// real query will fail with a Supabase error instead of crashing the app.
+export const supabase = createClient<Database>(
+  url ?? 'https://missing-supabase-url.invalid',
+  anonKey ?? 'missing-supabase-anon-key',
+  {
+    auth: {
+      storage: isBrowser ? AsyncStorage : noopStorage,
+      autoRefreshToken: isBrowser,
+      persistSession: isBrowser,
+      detectSessionInUrl: false,
+    },
   },
-});
+);

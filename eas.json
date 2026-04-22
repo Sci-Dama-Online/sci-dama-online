@@ -1,0 +1,33 @@
+{
+  "cli": {
+    "version": ">= 18.7.0",
+    "appVersionSource": "remote"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://fgdgyhbrvewckuhermbh.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_y2sBGH83yYrLPftAVj6QHw_oViJJP4E"
+      }
+    },
+    "preview": {
+      "distribution": "internal",
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://fgdgyhbrvewckuhermbh.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_y2sBGH83yYrLPftAVj6QHw_oViJJP4E"
+      }
+    },
+    "production": {
+      "autoIncrement": true,
+      "env": {
+        "EXPO_PUBLIC_SUPABASE_URL": "https://fgdgyhbrvewckuhermbh.supabase.co",
+        "EXPO_PUBLIC_SUPABASE_ANON_KEY": "sb_publishable_y2sBGH83yYrLPftAVj6QHw_oViJJP4E"
+      }
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
