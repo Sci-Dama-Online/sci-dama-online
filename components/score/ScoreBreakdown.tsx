@@ -1,9 +1,10 @@
 import { Ionicons } from '@expo/vector-icons';
+import React from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BankEvent, CaptureEvent, Player, Scores, ScoreEvent } from '@/game/types';
-import type { GameVariant } from '@/game/variants';
+import { VARIANTS, type GameVariant } from '@/game/variants';
 import { formatChipValue, formatScore, formatScoreWithUnit } from '@/lib/format';
 
 type Props = {
@@ -108,6 +109,7 @@ function PlayerSection({
   finalScore: number;
   variant: GameVariant;
 }) {
+  const meta = VARIANTS[variant];
   const captureSubtotal = captures.reduce((sum, c) => sum + c.delta, 0);
   const bankSubtotal = bank?.subtotal ?? 0;
 
@@ -129,6 +131,47 @@ function PlayerSection({
         ) : null}
       </View>
 
+      {meta.breakdownColumns ? (
+        <ColumnBreakdown
+          variant={variant}
+          columns={meta.breakdownColumns}
+          captures={captures}
+          bank={bank}
+          finalScore={finalScore}
+        />
+      ) : (
+        <FlatBreakdown
+          variant={variant}
+          captures={captures}
+          bank={bank}
+          captureSubtotal={captureSubtotal}
+          bankSubtotal={bankSubtotal}
+          finalScore={finalScore}
+        />
+      )}
+    </View>
+  );
+}
+
+// --- Flat (single-column) breakdown, used by Sci-Notation ------------------
+
+function FlatBreakdown({
+  variant,
+  captures,
+  bank,
+  captureSubtotal,
+  bankSubtotal,
+  finalScore,
+}: {
+  variant: GameVariant;
+  captures: CaptureEvent[];
+  bank: BankEvent | undefined;
+  captureSubtotal: number;
+  bankSubtotal: number;
+  finalScore: number;
+}) {
+  return (
+    <>
       <View style={styles.block}>
         <Text style={styles.blockTitle}>
           Captures {captures.length > 0 ? `(${captures.length})` : ''}
@@ -172,6 +215,206 @@ function PlayerSection({
         <Text style={styles.finalLineEq}>=</Text>
         <Text style={styles.finalLineRight}>{formatScoreWithUnit(variant, finalScore)}</Text>
       </View>
+    </>
+  );
+}
+
+// --- Column breakdown, used by Electro / THI / Thermo ---------------------
+
+// Decide which breakdown column a capture event belongs to:
+//   · Valid capture → prefer the result's unit (Thermo's g / °C / g·°C),
+//     otherwise fall back to the taker's chip column.
+//   · NS capture    → the taker's chip column ("whoever attempted the take").
+function captureColumnFor(
+  variant: GameVariant,
+  event: CaptureEvent,
+): string | null {
+  const meta = VARIANTS[variant];
+  if (!event.isNoScore && event.unit) return event.unit;
+  return meta.chipColumn(event.taker.label);
+}
+
+function ColumnBreakdown({
+  variant,
+  columns,
+  captures,
+  bank,
+  finalScore,
+}: {
+  variant: GameVariant;
+  columns: readonly string[];
+  captures: CaptureEvent[];
+  bank: BankEvent | undefined;
+  finalScore: number;
+}) {
+  const meta = VARIANTS[variant];
+
+  // Group captures + bank rows into their respective columns.
+  const colCaptures: Record<string, CaptureEvent[]> = Object.fromEntries(
+    columns.map((c) => [c, [] as CaptureEvent[]]),
+  );
+  const colBank: Record<string, BankEvent['chips']> = Object.fromEntries(
+    columns.map((c) => [c, [] as BankEvent['chips']]),
+  );
+
+  for (const ev of captures) {
+    const col = captureColumnFor(variant, ev);
+    if (col && col in colCaptures) colCaptures[col].push(ev);
+  }
+  for (const chip of bank?.chips ?? []) {
+    const col = meta.chipColumn(chip.label);
+    if (col && col in colBank) colBank[col].push(chip);
+  }
+
+  const columnSubtotals: Record<string, number> = Object.fromEntries(
+    columns.map((col) => {
+      const capSum = colCaptures[col].reduce((s, e) => s + e.delta, 0);
+      const bankSum = colBank[col].reduce((s, c) => s + c.contribution, 0);
+      return [col, capSum + bankSum];
+    }),
+  );
+
+  return (
+    <>
+      {columns.map((col) => (
+        <ColumnSection
+          key={col}
+          variant={variant}
+          column={col}
+          captures={colCaptures[col]}
+          chips={colBank[col]}
+          subtotal={columnSubtotals[col]}
+        />
+      ))}
+
+      <GrandTotalRow
+        variant={variant}
+        columns={columns}
+        columnSubtotals={columnSubtotals}
+        finalScore={finalScore}
+      />
+    </>
+  );
+}
+
+function ColumnSection({
+  variant,
+  column,
+  captures,
+  chips,
+  subtotal,
+}: {
+  variant: GameVariant;
+  column: string;
+  captures: CaptureEvent[];
+  chips: BankEvent['chips'];
+  subtotal: number;
+}) {
+  const captureSum = captures.reduce((s, e) => s + e.delta, 0);
+  const bankSum = chips.reduce((s, c) => s + c.contribution, 0);
+  const isEmpty = captures.length === 0 && chips.length === 0;
+
+  return (
+    <View style={styles.block}>
+      <View style={styles.columnHeader}>
+        <Text style={styles.blockTitle}>{column.toUpperCase()} column</Text>
+        <Text style={styles.columnSubtotal}>
+          {formatScore(variant, subtotal)}
+        </Text>
+      </View>
+
+      {isEmpty ? (
+        <Text style={styles.emptyText}>No activity in this column.</Text>
+      ) : (
+        <>
+          {captures.length > 0 ? (
+            <>
+              <Text style={styles.columnGroupTitle}>Captures</Text>
+              {captures.map((c) => (
+                <CaptureRow
+                  key={`${c.player}-${c.moveNumber}`}
+                  event={c}
+                  variant={variant}
+                />
+              ))}
+              <Text style={styles.subtotalLine}>
+                Captures: {formatScore(variant, captureSum)}
+              </Text>
+            </>
+          ) : null}
+          {chips.length > 0 ? (
+            <>
+              <Text style={styles.columnGroupTitle}>Remaining chips</Text>
+              {chips.map((chip, i) => (
+                <BankChipRow key={i} chip={chip} variant={variant} />
+              ))}
+              <Text style={styles.subtotalLine}>
+                Bank: {formatScore(variant, bankSum)}
+              </Text>
+            </>
+          ) : null}
+        </>
+      )}
+    </View>
+  );
+}
+
+function GrandTotalRow({
+  variant,
+  columns,
+  columnSubtotals,
+  finalScore,
+}: {
+  variant: GameVariant;
+  columns: readonly string[];
+  columnSubtotals: Record<string, number>;
+  finalScore: number;
+}) {
+  // Thermo's final isn't a simple sum: (g + °C) × g·°C, falling back to g + °C
+  // when there's no g·°C. Every other column-based variant just sums.
+  const isThermo = variant === 'thermo';
+  const g = columnSubtotals['g'] ?? 0;
+  const c = columnSubtotals['°C'] ?? 0;
+  const gc = columnSubtotals['g·°C'] ?? 0;
+
+  return (
+    <View style={styles.finalLine}>
+      <Text style={styles.finalLineLeft}>
+        {isThermo ? (
+          gc > 0 ? (
+            <>
+              ({formatScore(variant, g)}
+              <Text style={styles.hint}> g</Text>
+              {'  +  '}
+              {formatScore(variant, c)}
+              <Text style={styles.hint}> °C</Text>)
+              {'  ×  '}
+              {formatScore(variant, gc)}
+              <Text style={styles.hint}> g·°C</Text>
+            </>
+          ) : (
+            <>
+              {formatScore(variant, g)}
+              <Text style={styles.hint}> g</Text>
+              {'  +  '}
+              {formatScore(variant, c)}
+              <Text style={styles.hint}> °C</Text>
+            </>
+          )
+        ) : (
+          columns.map((col, i) => (
+            <React.Fragment key={col}>
+              {i > 0 ? '  +  ' : ''}
+              {formatScore(variant, columnSubtotals[col] ?? 0)}
+              <Text style={styles.hint}> {col}</Text>
+            </React.Fragment>
+          ))
+        )}
+      </Text>
+      <Text style={styles.finalLineEq}>=</Text>
+      <Text style={styles.finalLineRight}>
+        {formatScoreWithUnit(variant, finalScore)}
+      </Text>
     </View>
   );
 }
@@ -362,6 +605,24 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#666',
     letterSpacing: 0.8,
+  },
+  columnHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  columnSubtotal: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#2c3e50',
+    fontVariant: ['tabular-nums'],
+  },
+  columnGroupTitle: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#999',
+    letterSpacing: 0.6,
+    marginTop: 2,
   },
   emptyText: { fontSize: 13, color: '#999', fontStyle: 'italic' },
   subtotalLine: {

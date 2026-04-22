@@ -62,6 +62,14 @@ export type VariantMeta = {
   // Where the unit sits relative to the number. Defaults to "suffix" (e.g.
   // "91 °F"). Use "prefix" for currency-style labels like "P200".
   scoreUnitPosition?: 'prefix' | 'suffix';
+  // Columns the post-game score breakdown splits each player's rows into
+  // (e.g. Electro → P and KWH, Thermo → g / °C / g·°C). `null` renders a
+  // single-column breakdown (Sci-Notation). Columns show in the listed order.
+  breakdownColumns: readonly string[] | null;
+  // Maps a chip label to the breakdown column it belongs to, used for both
+  // remaining-chip banking and for placing NS captures in the taker's column.
+  // Returns null when the label has no recognised unit.
+  chipColumn: (label: string) => string | null;
   // Returns the chip's peso-equivalent numeric value given its board label.
   // Used by scoring math (for variants without a custom `computeCapture`) and
   // by end-of-game banking for every variant.
@@ -596,6 +604,8 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     computeCapture: electroComputeCapture,
     scoreUnit: 'P',
     scoreUnitPosition: 'prefix',
+    breakdownColumns: ['P', 'KWH'],
+    chipColumn: (label) => electroUnit(label),
   },
   sci_notation: {
     id: 'sci_notation',
@@ -617,6 +627,9 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     // Sci-Notation scores are already displayed in scientific-notation form,
     // so no additional unit suffix.
     scoreUnit: null,
+    // Single-column breakdown: every chip shares the same magnitude scale.
+    breakdownColumns: null,
+    chipColumn: () => null,
   },
   thi: {
     id: 'thi',
@@ -637,6 +650,9 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     valueOf: thiValueOf,
     computeCapture: thiComputeCapture,
     scoreUnit: '°F',
+    breakdownColumns: ['%', '°F'],
+    chipColumn: (label) =>
+      label.endsWith('%') ? '%' : label.endsWith('°F') ? '°F' : null,
   },
   thermo: {
     id: 'thermo',
@@ -659,6 +675,11 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     computeRunningScore: thermoRunningScore,
     finalizeGame: thermoFinalize,
     scoreUnit: 'g·°C',
+    breakdownColumns: ['g', '°C', 'g·°C'],
+    chipColumn: (label) => {
+      const parsed = parseThermoLabel(label);
+      return parsed?.unit ?? null;
+    },
   },
 };
 
