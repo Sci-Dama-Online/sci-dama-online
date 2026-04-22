@@ -12,6 +12,7 @@ import type {
   Pos,
   ScoreEvent,
   Scores,
+  UnitLabel,
 } from './types';
 import {
   VARIANTS,
@@ -126,6 +127,9 @@ export type CaptureMath = {
   // is skipped.
   isNoScore: boolean;
   noScoreReason: NoScoreReason | null;
+  // Thermo carries a per-capture unit (g / °C / g·°C); other variants leave
+  // this null.
+  unit: UnitLabel | null;
   delta: number;
 };
 
@@ -138,8 +142,8 @@ export function computeCaptureDelta(
   const variantMeta = VARIANTS[variant];
 
   // Variants may override capture math (THI uses this for unit-matching and
-  // the humidity → °F lookup). Default path uses `valueOf` and the op
-  // directly, with no NS.
+  // the humidity → °F lookup; Thermo uses it for unit arithmetic). Default
+  // path uses `valueOf` and the op directly, with no NS.
   const result: CaptureResult = variantMeta.computeCapture
     ? variantMeta.computeCapture(taker, taken, op)
     : (() => {
@@ -149,6 +153,7 @@ export function computeCaptureDelta(
           takerValue: a,
           takenValue: b,
           scoredValue: applyOp(op, a, b),
+          scoredUnit: null,
           isNoScore: false,
           noScoreReason: null,
         };
@@ -168,6 +173,7 @@ export function computeCaptureDelta(
     captureMultiplier,
     isNoScore: result.isNoScore,
     noScoreReason: result.noScoreReason,
+    unit: result.scoredUnit,
     delta,
   };
 }
@@ -395,19 +401,42 @@ export function remainingChipValue(
   );
 }
 
-// Ends the match: both players' remaining chips are banked into their scores
-// (converted to peso, × 1.5 for kings). Lower final score wins — idle chips
-// count against you. Returns the new scores, the winner, and the two
-// BankEvents that should be appended to the scoreLog.
+// Running score computation. Variants may override via
+// `VARIANTS[variant].computeRunningScore`; the default sums every non-NS
+// capture `delta` for that player.
+export function applyRunningScore(
+  variant: GameVariant,
+  scoreLog: ScoreEvent[],
+  player: Player,
+): number {
+  const override = VARIANTS[variant].computeRunningScore;
+  if (override) return override(scoreLog, player);
+  let total = 0;
+  for (const e of scoreLog) {
+    if (e.kind === 'capture' && e.player === player && !e.isNoScore) {
+      total += e.delta;
+    }
+  }
+  return total;
+}
+
+// Ends the match: both players' remaining chips are banked into their scores.
+// Variants that need custom finalisation (Thermo buckets by unit) supply
+// `finalizeGame`; the default version sums remaining-chip contributions
+// (× 2 for dama) into each side's score and picks the lowest total.
 export function endGame(
   variant: GameVariant,
   board: Board,
   scores: Scores,
+  scoreLog: ScoreEvent[] = [],
 ): {
   scores: Scores;
   winner: Player | 'tie';
-  bankEvents: [BankEvent, BankEvent];
+  bankEvents: BankEvent[];
 } {
+  const override = VARIANTS[variant].finalizeGame;
+  if (override) return override(board, scoreLog, scores);
+
   const redChips = collectRemainingChips(variant, board, 'red');
   const blackChips = collectRemainingChips(variant, board, 'black');
   const redSubtotal = redChips.reduce((s, c) => s + c.contribution, 0);
@@ -463,7 +492,6 @@ export function applyMove(state: GameState, move: Move): GameState {
       const taken = state.board[cr][cc];
       if (!taken) continue;
       const math = computeCaptureDelta(state.variant, piece, taken, op);
-      scores[piece.player] += math.delta;
       const priorCaptureCount = scoreLog.reduce(
         (n, e) => (e.kind === 'capture' ? n + 1 : n),
         0,
@@ -486,10 +514,21 @@ export function applyMove(state: GameState, move: Move): GameState {
         captureMultiplier: math.captureMultiplier,
         isNoScore: math.isNoScore,
         noScoreReason: math.noScoreReason,
+        unit: math.unit,
         delta: math.delta,
-        playerTotalAfter: scores[piece.player],
+        // Filled in below once the running score has been recomputed.
+        playerTotalAfter: 0,
       };
       scoreLog.push(event);
+      // Variants may need a non-additive running score (Thermo's formula is
+      // not a simple sum); `applyRunningScore` resolves the override or falls
+      // back to summing deltas.
+      scores[piece.player] = applyRunningScore(
+        state.variant,
+        scoreLog,
+        piece.player,
+      );
+      event.playerTotalAfter = scores[piece.player];
     }
   }
 
@@ -543,7 +582,7 @@ export function applyMove(state: GameState, move: Move): GameState {
   let finalScores = scores;
   let finalLog = scoreLog;
   if (countPieces(board, turn) === 0 || !hasAnyMove(board, turn)) {
-    const ended = endGame(state.variant, board, scores);
+    const ended = endGame(state.variant, board, scores, scoreLog);
     finalScores = ended.scores;
     winner = ended.winner;
     finalLog = [...scoreLog, ...ended.bankEvents];

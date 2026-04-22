@@ -99,11 +99,13 @@ That final number gets added to your score. Your opponent's score is **not** dir
 
 - Ordinary **P10** captures P2, lands on **+** → (10 + 2) × 1 = **12 points**
 - Ordinary **P2** captures P10, lands on **−** → (2 − 10) × 1 = **−8 points** (yes, negative!)
-- Dama **P10** captures 7KWH, lands on **+** → (10 + (7 × 1.5)) × 2 = (10 + 10.5) × 2 = **41 points**
-- Dama **P8** captures Dama P6, lands on **×** → (8 × 6) × 4 = **192 points**
+- Dama **7KWH** captures 5KWH, lands on **+** → ((7 × 1.5) + (5 × 1.5)) × 2 = (10.5 + 7.5) × 2 = **36 points**
+- Dama **P8** captures Dama **P6**, lands on **×** → (8 × 6) × 4 = **192 points**
+- Ordinary **P10** captures 7KWH → **No Score** (different units — P vs kWh — are never combinable in Electro).
 
 Notice:
-- A bad landing (like getting a minus when you're smaller than the piece you took) can **drop your score below zero**.
+- Captures must be between **same-unit chips** (P with P, or kWh with kWh). Any P ↔ kWh capture, regardless of the landing operation, is NS.
+- A bad landing (like a minus when you're smaller than the piece you took) can **drop your score below zero**.
 - The kWh × 1.5 conversion is separate from the dama bonus — both can apply to the same capture without interfering.
 
 The two score tiles next to the board show the running totals: **Black in the top-left, Red in the bottom-right.**

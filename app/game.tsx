@@ -82,7 +82,12 @@ export default function GameScreen() {
     if (state.winner) return;
     if (remaining === null) return;
     if (remaining > 0) return;
-    const ended = endGame(state.variant, state.board, state.scores);
+    const ended = endGame(
+      state.variant,
+      state.board,
+      state.scores,
+      state.scoreLog,
+    );
     setState({
       ...state,
       scores: ended.scores,
@@ -127,7 +132,7 @@ export default function GameScreen() {
   }
 
   function exit() {
-    router.replace('/(tabs)/index');
+    router.replace('/(tabs)');
   }
 
   const turnLabel = state.turn === 'red' ? "Red's turn" : "Black's turn";

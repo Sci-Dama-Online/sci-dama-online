@@ -30,16 +30,24 @@ export type Operation = '+' | '-' | '×' | '÷';
 // post-game breakdown next to the "NS" badge.
 export type NoScoreReason = 'mixed units' | 'negative result' | 'off table';
 
+// Unit labels used by Thermo's bucketed scoring. Other variants leave this
+// null on their capture results.
+export type UnitLabel = 'g' | '°C' | 'g·°C';
+
 // Full outcome of a single capture from the variant's perspective. Allows
-// variants (notably THI) to inject NS rules and unit-aware scoring without
-// touching the generic rules engine.
+// variants (notably THI and Thermo) to inject NS rules and unit-aware scoring
+// without touching the generic rules engine.
 export type CaptureResult = {
   takerValue: number;
   takenValue: number;
   // Final numeric value that becomes the delta (before the dama × 2 / × 4
   // bonus). For THI %+% captures this is already the °F table lookup of the
-  // combined humidity; for other variants it's just takerValue OP takenValue.
+  // combined humidity; for Thermo captures this is the magnitude in the
+  // scoredUnit; for other variants it's just takerValue OP takenValue.
   scoredValue: number;
+  // The unit `scoredValue` carries (Thermo only). Null for variants that
+  // don't use unit buckets.
+  scoredUnit: UnitLabel | null;
   isNoScore: boolean;
   noScoreReason: NoScoreReason | null;
 };
@@ -64,6 +72,9 @@ export type CaptureEvent = {
   // and the dama bonus does not apply.
   isNoScore: boolean;
   noScoreReason: NoScoreReason | null;
+  // Unit bucket this capture's delta belongs to (Thermo only). Null for
+  // variants that don't use unit buckets.
+  unit: UnitLabel | null;
   delta: number;
   playerTotalAfter: number;
 };

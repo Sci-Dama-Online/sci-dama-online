@@ -30,7 +30,7 @@ export default function GameSetupModal() {
     if (router.canGoBack()) {
       router.back();
     } else {
-      router.replace('/(tabs)/index');
+      router.replace('/(tabs)');
     }
   }
 

@@ -3,7 +3,17 @@
 // label→value mapping used by the scoring engine. Variants without their own
 // chip set yet reuse Electro's as a placeholder.
 
-import type { CaptureResult, Operation, Piece } from './types';
+import type {
+  BankEvent,
+  Board,
+  CaptureEvent,
+  CaptureResult,
+  Operation,
+  Piece,
+  Player,
+  ScoreEvent,
+  Scores,
+} from './types';
 
 export type GameVariant = 'electro' | 'sci_notation' | 'thi' | 'thermo';
 
@@ -52,13 +62,27 @@ export type VariantMeta = {
   // Optional: full per-variant capture-math override. Receives the two chips
   // and the landing-square operation, returns the raw taker/taken values, the
   // scored value that becomes the delta (before the dama bonus), and any
-  // No-Score flag. Only THI needs this today — it has unit-matching and a
-  // humidity → °F lookup that the default pipeline can't express.
+  // No-Score flag. THI uses this for unit-matching and humidity → °F lookup;
+  // Thermo uses it for unit arithmetic (g, °C, g·°C).
   computeCapture?: (
     taker: Piece,
     taken: Piece,
     op: Operation,
   ) => CaptureResult;
+  // Optional: variant-specific running score computation. Default behaviour
+  // (sum of capture deltas) works for every variant whose score is a simple
+  // accumulator. Thermo overrides this because its score is
+  //   (g total + °C total) × (g·°C total or 1)
+  // which isn't an additive running sum.
+  computeRunningScore?: (scoreLog: ScoreEvent[], player: Player) => number;
+  // Optional: variant-specific end-of-match finalisation. Default adds
+  // remaining chip values (× 2 for dama) to each player's score and picks the
+  // lowest. Thermo buckets remaining chips by unit and applies its formula.
+  finalizeGame?: (
+    board: Board,
+    scoreLog: ScoreEvent[],
+    scores: Scores,
+  ) => { scores: Scores; winner: Player | 'tie'; bankEvents: BankEvent[] };
 };
 
 // Default board operations shared by Electro, Sci-Notation, and Thermo.
@@ -111,6 +135,54 @@ function electroValueOf(label: string): number {
   if (label.startsWith('P')) return Number(label.slice(1));
   if (label.endsWith('KWH')) return Number(label.slice(0, -3)) * 1.5;
   return 0;
+}
+
+function electroUnit(label: string): 'P' | 'KWH' | null {
+  if (label.endsWith('KWH')) return 'KWH';
+  if (label.startsWith('P')) return 'P';
+  return null;
+}
+
+// Electro capture math. Chips come in two units: P (peso) and kWh. Same-unit
+// captures run the landing-square operation on the peso-equivalent values
+// (kWh chips convert to peso via × 1.5). Mixed-unit captures — regardless of
+// the operation — are No Score.
+function electroComputeCapture(
+  taker: Piece,
+  taken: Piece,
+  op: Operation,
+): CaptureResult {
+  const takerValue = electroValueOf(taker.label);
+  const takenValue = electroValueOf(taken.label);
+  const takerUnit = electroUnit(taker.label);
+  const takenUnit = electroUnit(taken.label);
+
+  if (takerUnit === null || takenUnit === null || takerUnit !== takenUnit) {
+    return {
+      takerValue,
+      takenValue,
+      scoredValue: 0,
+      scoredUnit: null,
+      isNoScore: true,
+      noScoreReason: 'mixed units',
+    };
+  }
+
+  let scored: number;
+  switch (op) {
+    case '+': scored = takerValue + takenValue; break;
+    case '-': scored = takerValue - takenValue; break;
+    case '×': scored = takerValue * takenValue; break;
+    case '÷': scored = takenValue === 0 ? 0 : takerValue / takenValue; break;
+  }
+  return {
+    takerValue,
+    takenValue,
+    scoredValue: scored,
+    scoredUnit: null,
+    isNoScore: false,
+    noScoreReason: null,
+  };
 }
 
 // --- Sci-Notation chip set -------------------------------------------------
@@ -203,6 +275,7 @@ function thiComputeCapture(
       takerValue,
       takenValue,
       scoredValue: 0,
+      scoredUnit: null,
       isNoScore: true,
       noScoreReason: 'mixed units',
     };
@@ -224,6 +297,7 @@ function thiComputeCapture(
       takerValue,
       takenValue,
       scoredValue: 0,
+      scoredUnit: null,
       isNoScore: true,
       noScoreReason: 'negative result',
     };
@@ -236,6 +310,7 @@ function thiComputeCapture(
         takerValue,
         takenValue,
         scoredValue: 0,
+        scoredUnit: null,
         isNoScore: true,
         noScoreReason: 'off table',
       };
@@ -244,6 +319,7 @@ function thiComputeCapture(
       takerValue,
       takenValue,
       scoredValue: converted,
+      scoredUnit: null,
       isNoScore: false,
       noScoreReason: null,
     };
@@ -254,6 +330,7 @@ function thiComputeCapture(
     takerValue,
     takenValue,
     scoredValue: base,
+    scoredUnit: null,
     isNoScore: false,
     noScoreReason: null,
   };
@@ -277,6 +354,218 @@ const THI_CHIPS: VariantChips = {
   ],
 };
 
+// --- Thermo chip set -------------------------------------------------------
+// Chips carry a value in grams (g) or degrees Celsius (°C). Captures follow
+// thermodynamics-style unit arithmetic:
+//   same unit (g/g or °C/°C) + any op → result in same unit (non-negative)
+//   g × °C                            → result in g·°C (new compound unit)
+//   any other mixed-unit op           → NS
+// The final score combines per-unit totals:
+//   if g·°C total > 0: Final = (g total + °C total) × g·°C total
+//   otherwise:         Final =  g total + °C total
+
+type ThermoChip = { value: number; unit: 'g' | '°C' };
+
+function parseThermoLabel(label: string): ThermoChip | null {
+  if (label.endsWith('°C')) return { value: Number(label.slice(0, -2)), unit: '°C' };
+  if (label.endsWith('g')) return { value: Number(label.slice(0, -1)), unit: 'g' };
+  return null;
+}
+
+function thermoValueOf(label: string): number {
+  return parseThermoLabel(label)?.value ?? 0;
+}
+
+function thermoComputeCapture(
+  taker: Piece,
+  taken: Piece,
+  op: Operation,
+): CaptureResult {
+  const t = parseThermoLabel(taker.label);
+  const k = parseThermoLabel(taken.label);
+  if (!t || !k) {
+    return {
+      takerValue: 0,
+      takenValue: 0,
+      scoredValue: 0,
+      scoredUnit: null,
+      isNoScore: true,
+      noScoreReason: 'mixed units',
+    };
+  }
+
+  // Mixed units: only × is allowed (g × °C → g·°C). Everything else is NS.
+  if (t.unit !== k.unit) {
+    if (op !== '×') {
+      return {
+        takerValue: t.value,
+        takenValue: k.value,
+        scoredValue: 0,
+        scoredUnit: null,
+        isNoScore: true,
+        noScoreReason: 'mixed units',
+      };
+    }
+    return {
+      takerValue: t.value,
+      takenValue: k.value,
+      scoredValue: t.value * k.value,
+      scoredUnit: 'g·°C',
+      isNoScore: false,
+      noScoreReason: null,
+    };
+  }
+
+  // Same unit: all four operations valid. Result shares the unit. Division
+  // by zero or a negative outcome is NS.
+  let base: number;
+  switch (op) {
+    case '+':
+      base = t.value + k.value;
+      break;
+    case '-':
+      base = t.value - k.value;
+      break;
+    case '×':
+      base = t.value * k.value;
+      break;
+    case '÷':
+      if (k.value === 0) {
+        return {
+          takerValue: t.value,
+          takenValue: k.value,
+          scoredValue: 0,
+          scoredUnit: null,
+          isNoScore: true,
+          noScoreReason: 'negative result',
+        };
+      }
+      base = t.value / k.value;
+      break;
+  }
+
+  if (base < 0) {
+    return {
+      takerValue: t.value,
+      takenValue: k.value,
+      scoredValue: 0,
+      scoredUnit: null,
+      isNoScore: true,
+      noScoreReason: 'negative result',
+    };
+  }
+
+  return {
+    takerValue: t.value,
+    takenValue: k.value,
+    scoredValue: base,
+    scoredUnit: t.unit,
+    isNoScore: false,
+    noScoreReason: null,
+  };
+}
+
+type ThermoBuckets = { g: number; c: number; gc: number };
+
+function thermoFormula(b: ThermoBuckets): number {
+  const base = b.g + b.c;
+  return b.gc > 0 ? base * b.gc : base;
+}
+
+function thermoBucketsFromCaptures(
+  scoreLog: ScoreEvent[],
+  player: Player,
+): ThermoBuckets {
+  const b: ThermoBuckets = { g: 0, c: 0, gc: 0 };
+  for (const e of scoreLog) {
+    if (e.kind !== 'capture' || e.player !== player || e.isNoScore) continue;
+    if (e.unit === 'g') b.g += e.delta;
+    else if (e.unit === '°C') b.c += e.delta;
+    else if (e.unit === 'g·°C') b.gc += e.delta;
+  }
+  return b;
+}
+
+function thermoRunningScore(
+  scoreLog: ScoreEvent[],
+  player: Player,
+): number {
+  return thermoFormula(thermoBucketsFromCaptures(scoreLog, player));
+}
+
+// End-of-match banking for Thermo: bucket remaining chips by unit (dama × 2
+// still applies) and run the formula over (captures + remaining).
+function thermoFinalize(
+  board: Board,
+  scoreLog: ScoreEvent[],
+  _scores: Scores,
+): { scores: Scores; winner: Player | 'tie'; bankEvents: BankEvent[] } {
+  void _scores; // Thermo ignores the running `scores` accumulator.
+  const bucketsByPlayer: Record<Player, ThermoBuckets> = {
+    red: thermoBucketsFromCaptures(scoreLog, 'red'),
+    black: thermoBucketsFromCaptures(scoreLog, 'black'),
+  };
+
+  const bankEvents: BankEvent[] = [];
+
+  for (const player of ['red', 'black'] as const) {
+    const chips: BankEvent['chips'] = [];
+    for (const row of board) {
+      for (const cell of row) {
+        if (!cell || cell.player !== player) continue;
+        const parsed = parseThermoLabel(cell.label);
+        if (!parsed) continue;
+        const isDama = cell.kind === 'dama';
+        const base = parsed.value;
+        const contribution = isDama ? base * 2 : base;
+        chips.push({
+          label: cell.label,
+          isDama,
+          baseValue: base,
+          contribution,
+        });
+        if (parsed.unit === 'g') bucketsByPlayer[player].g += contribution;
+        else bucketsByPlayer[player].c += contribution;
+      }
+    }
+    const subtotal = chips.reduce((s, c) => s + c.contribution, 0);
+    bankEvents.push({
+      kind: 'bank',
+      player,
+      chips,
+      subtotal,
+      finalTotal: thermoFormula(bucketsByPlayer[player]),
+    });
+  }
+
+  const red = thermoFormula(bucketsByPlayer.red);
+  const black = thermoFormula(bucketsByPlayer.black);
+  let winner: Player | 'tie';
+  if (red < black) winner = 'red';
+  else if (black < red) winner = 'black';
+  else winner = 'tie';
+
+  return { scores: { red, black }, winner, bankEvents };
+}
+
+// Red arrangement (rows 5→7, front→back):
+//   row 5 (front): 29g   17°C   3g   11°C
+//   row 6:          2°C   7g  31°C   19g
+//   row 7 (back):  37g   23°C  13g    5°C
+// Black is the 180° mirror.
+const THERMO_CHIPS: VariantChips = {
+  red: [
+    [5, 1, '29g'],  [5, 3, '17°C'], [5, 5, '3g'],   [5, 7, '11°C'],
+    [6, 0, '2°C'],  [6, 2, '7g'],   [6, 4, '31°C'], [6, 6, '19g'],
+    [7, 1, '37g'],  [7, 3, '23°C'], [7, 5, '13g'],  [7, 7, '5°C'],
+  ],
+  black: [
+    [0, 0, '5°C'],  [0, 2, '13g'],  [0, 4, '23°C'], [0, 6, '37g'],
+    [1, 1, '19g'],  [1, 3, '31°C'], [1, 5, '7g'],   [1, 7, '2°C'],
+    [2, 0, '11°C'], [2, 2, '3g'],   [2, 4, '17°C'], [2, 6, '29g'],
+  ],
+};
+
 // --- Variant registry ------------------------------------------------------
 
 export const VARIANTS: Record<GameVariant, VariantMeta> = {
@@ -297,6 +586,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     chips: ELECTRO_CHIPS,
     operations: DEFAULT_OPERATIONS,
     valueOf: electroValueOf,
+    computeCapture: electroComputeCapture,
   },
   sci_notation: {
     id: 'sci_notation',
@@ -349,11 +639,12 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
       frame: '#4e2e1e',
     },
     available: true,
-    // Placeholder: same chip set + scoring as Electro until Thermo's own rules
-    // are defined.
-    chips: ELECTRO_CHIPS,
+    chips: THERMO_CHIPS,
     operations: DEFAULT_OPERATIONS,
-    valueOf: electroValueOf,
+    valueOf: thermoValueOf,
+    computeCapture: thermoComputeCapture,
+    computeRunningScore: thermoRunningScore,
+    finalizeGame: thermoFinalize,
   },
 };
 

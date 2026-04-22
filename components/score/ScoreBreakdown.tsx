@@ -230,7 +230,10 @@ function CaptureRow({
             {'  '}
             <Text style={styles.op}>=</Text>
             {'  '}
-            <Text style={styles.rowDelta}>{formatScore(variant, event.delta)}</Text>
+            <Text style={styles.rowDelta}>
+              {formatScore(variant, event.delta)}
+              {event.unit ? ` ${event.unit}` : ''}
+            </Text>
           </Text>
         )}
       </Text>
