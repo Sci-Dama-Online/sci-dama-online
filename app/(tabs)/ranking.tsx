@@ -6,7 +6,7 @@ export default function RankingScreen() {
     <SafeAreaView style={styles.root} edges={['top', 'bottom']}>
       <View style={styles.center}>
         <Text style={styles.heading}>Ranking</Text>
-        <Text style={styles.body}>Hello World</Text>
+        <Text style={styles.body}>Coming Soon...</Text>
       </View>
     </SafeAreaView>
   );
