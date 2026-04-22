@@ -190,6 +190,18 @@ function electroComputeCapture(
     case '×': scored = takerValue * takenValue; break;
     case '÷': scored = takenValue === 0 ? 0 : takerValue / takenValue; break;
   }
+  // Official rule: negative capture results (e.g. taker smaller than taken on
+  // a − tile) earn 0 — Electro scores can't go below zero.
+  if (scored < 0) {
+    return {
+      takerValue,
+      takenValue,
+      scoredValue: 0,
+      scoredUnit: null,
+      isNoScore: true,
+      noScoreReason: 'negative result',
+    };
+  }
   return {
     takerValue,
     takenValue,
