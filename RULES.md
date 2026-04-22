@@ -67,13 +67,13 @@ Black is the exact mirror on the opposite side of the board.
 - A regular chip can jump **forward or backward** (either direction diagonally), as long as the enemy is on the next square and the square right after is empty.
 - **Captures are mandatory.** If you can capture this turn, you must. You're not allowed to make a plain move instead.
 - **Multi-jumps are mandatory too.** If your chip lands after a capture and can immediately capture another piece, it has to keep going. A single turn can chain several captures in a row.
+- **Take the longest path.** If a chip has multiple capture routes that split into different lengths, you must follow the one that captures the most chips. Example: if one branch takes 2 chips and another takes 3, only the 3-chain is legal. Ties are fine — you can pick either path of equal maximum length. This rule applies at every step of a chain, not just the first jump.
 
 ## Dama (promoted chips)
 
 - When a regular chip reaches the opposite back row, it becomes a **dama** (shown with a gold border on the chip).
 - A dama moves **any distance diagonally** along an empty path — not just one square.
-- A dama captures by flying over an enemy chip (with a clear path to it) and landing on any empty square past it.
-- **A dama cannot dodge a capture.** If a dama jumps and has multiple possible landing squares past the enemy, and at least one of those landings allows another capture, the dama must pick a landing that continues the chain.
+- A dama captures by flying over an enemy chip (with a clear path to it) and landing on any empty square past it. The longest-path rule above means a dama can't land on a square that stops the chain if another landing would continue it (or lead to more captures overall).
 - **The chain takes priority over promotion.** If a regular chip lands on the opposite back row during a capture and another capture is still available from that square, the chip must keep chaining — still as a regular chip. Promotion only triggers if the chain **ends** with the piece resting on the back row.
 - **Passing through doesn't promote.** A chip that touches the back row mid-chain but finishes somewhere else stays a regular chip, and the captures it took in that chain do **not** get any dama bonus.
 

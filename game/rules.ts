@@ -281,6 +281,10 @@ export function getCaptures(board: Board, r: number, c: number): Move[] {
   return moves;
 }
 
+// Used for capture-chain lookahead. The piece keeps its current kind through
+// the simulation — promotion is applied only by `applyMove` at the end of a
+// real chain, so we must mirror that here. A man who lands on the back row
+// mid-chain stays a man (single-square jump pattern) in the lookahead.
 function simulateMove(board: Board, move: Move): Board {
   const b: Board = board.map((row) => row.slice());
   const [fr, fc] = move.from;
@@ -289,27 +293,37 @@ function simulateMove(board: Board, move: Move): Board {
   if (!piece) return b;
   b[fr][fc] = null;
   for (const [cr, cc] of move.captured) b[cr][cc] = null;
-  b[tr][tc] = move.promoted ? { ...piece, kind: 'dama' } : piece;
+  b[tr][tc] = piece;
   return b;
 }
 
-// When a dama captures, its flying nature gives it multiple possible landing
-// squares past the enemy. If some landings enable another capture and others
-// don't, the dama must pick a chain-continuing landing — it can't "dodge" a
-// takable piece by stopping short or skipping past.
-function filterDamaChainContinuers(
-  board: Board,
-  from: Pos,
-  captures: Move[],
-): Move[] {
-  if (captures.length === 0) return captures;
-  const piece = board[from[0]][from[1]];
-  if (!piece || piece.kind !== 'dama') return captures;
-  const continuers = captures.filter((m) => {
+// Length of the longest capture chain a piece at (r, c) can produce from the
+// given board state (including the starting jump). Returns 0 if no captures
+// are available. Terminates because each jump removes an enemy.
+function maxChainLengthFrom(board: Board, r: number, c: number): number {
+  const captures = getCaptures(board, r, c);
+  if (captures.length === 0) return 0;
+  let best = 0;
+  for (const m of captures) {
     const next = simulateMove(board, m);
-    return getCaptures(next, m.to[0], m.to[1]).length > 0;
-  });
-  return continuers.length > 0 ? continuers : captures;
+    const len = 1 + maxChainLengthFrom(next, m.to[0], m.to[1]);
+    if (len > best) best = len;
+  }
+  return best;
+}
+
+// Official majority-capture rule: when a chip has multiple capture paths that
+// split into different lengths, it must follow the longest one. Ties are all
+// legal (player picks). Applies to every variant and to both men and dama,
+// subsuming the previous dama-only "no dodge" filter. Empty input returned
+// unchanged.
+function filterToMaxChain(board: Board, captures: Move[]): Move[] {
+  if (captures.length === 0) return captures;
+  const lengths = captures.map(
+    (m) => 1 + maxChainLengthFrom(simulateMove(board, m), m.to[0], m.to[1]),
+  );
+  const max = Math.max(...lengths);
+  return captures.filter((_, i) => lengths[i] === max);
 }
 
 export function getLegalMovesForPiece(
@@ -318,11 +332,7 @@ export function getLegalMovesForPiece(
   c: number,
   mustCapture: boolean,
 ): Move[] {
-  const captures = filterDamaChainContinuers(
-    board,
-    [r, c],
-    getCaptures(board, r, c),
-  );
+  const captures = filterToMaxChain(board, getCaptures(board, r, c));
   if (mustCapture) return captures;
   if (captures.length > 0) return captures;
   return getSlides(board, r, c);
@@ -544,11 +554,7 @@ export function applyMove(state: GameState, move: Move): GameState {
   let continueChain = false;
   let nextCaptures: Move[] = [];
   if (wasCapture) {
-    nextCaptures = filterDamaChainContinuers(
-      board,
-      [tr, tc],
-      getCaptures(board, tr, tc),
-    );
+    nextCaptures = filterToMaxChain(board, getCaptures(board, tr, tc));
     if (nextCaptures.length > 0) continueChain = true;
   }
 

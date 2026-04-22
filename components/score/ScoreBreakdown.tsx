@@ -4,7 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 
 import type { BankEvent, CaptureEvent, Player, Scores, ScoreEvent } from '@/game/types';
 import type { GameVariant } from '@/game/variants';
-import { formatChipValue, formatScore } from '@/lib/format';
+import { formatChipValue, formatScore, formatScoreWithUnit } from '@/lib/format';
 
 type Props = {
   visible: boolean;
@@ -118,7 +118,7 @@ function PlayerSection({
         <View style={styles.finalBadge}>
           <Text style={styles.finalBadgeLabel}>FINAL</Text>
           <Text style={styles.finalBadgeValue}>
-            {formatScore(variant, finalScore)}
+            {formatScoreWithUnit(variant, finalScore)}
           </Text>
         </View>
         {isWinner ? (
@@ -170,7 +170,7 @@ function PlayerSection({
           {formatScore(variant, bankSubtotal)} (bank)
         </Text>
         <Text style={styles.finalLineEq}>=</Text>
-        <Text style={styles.finalLineRight}>{formatScore(variant, finalScore)}</Text>
+        <Text style={styles.finalLineRight}>{formatScoreWithUnit(variant, finalScore)}</Text>
       </View>
     </View>
   );

@@ -55,6 +55,13 @@ export type VariantMeta = {
   available: boolean;
   chips: VariantChips;
   operations: BoardOperations;
+  // Unit shown with the final score in the UI (e.g. "P" for Electro, "°F" for
+  // THI). `null` when the score carries no explicit unit (e.g. the
+  // Sci-Notation variant's score is already in scientific-notation form).
+  scoreUnit: string | null;
+  // Where the unit sits relative to the number. Defaults to "suffix" (e.g.
+  // "91 °F"). Use "prefix" for currency-style labels like "P200".
+  scoreUnitPosition?: 'prefix' | 'suffix';
   // Returns the chip's peso-equivalent numeric value given its board label.
   // Used by scoring math (for variants without a custom `computeCapture`) and
   // by end-of-game banking for every variant.
@@ -587,6 +594,8 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     operations: DEFAULT_OPERATIONS,
     valueOf: electroValueOf,
     computeCapture: electroComputeCapture,
+    scoreUnit: 'P',
+    scoreUnitPosition: 'prefix',
   },
   sci_notation: {
     id: 'sci_notation',
@@ -605,6 +614,9 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     chips: SCI_NOTATION_CHIPS,
     operations: DEFAULT_OPERATIONS,
     valueOf: sciNotationValueOf,
+    // Sci-Notation scores are already displayed in scientific-notation form,
+    // so no additional unit suffix.
+    scoreUnit: null,
   },
   thi: {
     id: 'thi',
@@ -624,6 +636,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     operations: THI_OPERATIONS,
     valueOf: thiValueOf,
     computeCapture: thiComputeCapture,
+    scoreUnit: '°F',
   },
   thermo: {
     id: 'thermo',
@@ -645,6 +658,7 @@ export const VARIANTS: Record<GameVariant, VariantMeta> = {
     computeCapture: thermoComputeCapture,
     computeRunningScore: thermoRunningScore,
     finalizeGame: thermoFinalize,
+    scoreUnit: 'g·°C',
   },
 };
 

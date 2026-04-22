@@ -2,7 +2,7 @@
 // Variant-aware: Sci-Notation renders scores in "m.mm × 10ⁿ" form so massive
 // totals fit in the UI; other variants stick to decimal with up to 2dp.
 
-import type { GameVariant } from '@/game/variants';
+import { VARIANTS, type GameVariant } from '@/game/variants';
 
 const SUPERSCRIPTS: Record<string, string> = {
   '0': '⁰',
@@ -76,4 +76,21 @@ export function formatScore(variant: GameVariant, n: number): string {
 export function formatChipValue(variant: GameVariant, n: number): string {
   if (variant === 'sci_notation') return toSciNotation(n);
   return toDecimal(n);
+}
+
+// Full score display including the variant's unit (e.g. "P12" for Electro,
+// "91 °F" for THI, "3,402 g·°C" for Thermo). Sci-Notation has no unit — its
+// scientific form already communicates the magnitude.
+// Prefix-style units (like Electro's "P") keep the sign outside the unit:
+// a score of −200 renders as "-P200", not "P-200".
+export function formatScoreWithUnit(variant: GameVariant, n: number): string {
+  const unit = VARIANTS[variant].scoreUnit;
+  if (!unit) return formatScore(variant, n);
+  const position = VARIANTS[variant].scoreUnitPosition ?? 'suffix';
+  if (position === 'prefix') {
+    const isNegative = n < 0;
+    const body = formatScore(variant, Math.abs(n));
+    return `${isNegative ? '-' : ''}${unit}${body}`;
+  }
+  return `${formatScore(variant, n)} ${unit}`;
 }

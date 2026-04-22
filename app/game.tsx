@@ -19,7 +19,7 @@ import {
   type GameVariant,
   type TimerOption,
 } from '@/game/variants';
-import { formatScore, toFullDecimal, toSciNotation } from '@/lib/format';
+import { formatScoreWithUnit, toFullDecimal, toSciNotation } from '@/lib/format';
 
 function formatClock(seconds: number): string {
   const s = Math.max(0, Math.floor(seconds));
@@ -205,7 +205,7 @@ export default function GameScreen() {
           >
             <Text style={styles.scoreLabel}>Black</Text>
             <Text style={styles.scoreValue} numberOfLines={1}>
-              {formatScore(state.variant, state.scores.black)}
+              {formatScoreWithUnit(state.variant, state.scores.black)}
             </Text>
           </Pressable>
           <Board state={state} size={boardSize} onSquarePress={handleSquarePress} />
@@ -215,7 +215,7 @@ export default function GameScreen() {
           >
             <Text style={styles.scoreLabel}>Red</Text>
             <Text style={styles.scoreValue} numberOfLines={1}>
-              {formatScore(state.variant, state.scores.red)}
+              {formatScoreWithUnit(state.variant, state.scores.red)}
             </Text>
           </Pressable>
         </View>
@@ -238,8 +238,8 @@ export default function GameScreen() {
                   : 'Black wins!'}
             </Text>
             <Text style={styles.winnerSub}>
-              Red {formatScore(state.variant, state.scores.red)} · Black{' '}
-              {formatScore(state.variant, state.scores.black)}
+              Red {formatScoreWithUnit(state.variant, state.scores.red)} · Black{' '}
+              {formatScoreWithUnit(state.variant, state.scores.black)}
             </Text>
             <Text style={styles.winnerFootnote}>
               Lower score wins. Remaining chips are banked.
